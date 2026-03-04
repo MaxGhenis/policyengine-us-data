@@ -80,8 +80,52 @@ jobs:
       - name: Run tests
         run: pytest
 
+      - name: Validate datasets before upload
+        if: success() && inputs.upload_data
+        run: |
+          python -c "
+          import os, sys, h5py
+
+          storage = 'policyengine_us_data/storage'
+          errors = []
+
+          # Check enhanced_cps_2024.h5 exists and is > 100MB
+          enhanced = os.path.join(storage, 'enhanced_cps_2024.h5')
+          if not os.path.exists(enhanced):
+              errors.append(f'MISSING: {enhanced}')
+          else:
+              size_mb = os.path.getsize(enhanced) / (1024 * 1024)
+              if size_mb < 100:
+                  errors.append(f'TOO SMALL: {enhanced} is {size_mb:.1f}MB (expected >100MB)')
+
+          # Check cps_2024.h5 exists
+          cps = os.path.join(storage, 'cps_2024.h5')
+          if not os.path.exists(cps):
+              errors.append(f'MISSING: {cps}')
+
+          # Quick H5 variable check
+          if os.path.exists(enhanced):
+              with h5py.File(enhanced, 'r') as f:
+                  if 'household_weight' not in f:
+                      errors.append(f'MISSING VARIABLE: household_weight not in {enhanced}')
+                  elif len(f['household_weight'].keys()) == 0:
+                      errors.append(f'EMPTY VARIABLE: household_weight has no year keys in {enhanced}')
+                  if 'employment_income_before_lsr' not in f:
+                      errors.append(f'MISSING VARIABLE: employment_income_before_lsr not in {enhanced}')
+                  elif len(f['employment_income_before_lsr'].keys()) == 0:
+                      errors.append(f'EMPTY VARIABLE: employment_income_before_lsr has no year keys in {enhanced}')
+
+          if errors:
+              print('Dataset validation FAILED:')
+              for e in errors:
+                  print(f'  - {e}')
+              sys.exit(1)
+          else:
+              print('Dataset validation passed.')
+          "
+
       - name: Upload data
-        if: inputs.upload_data
+        if: success() && inputs.upload_data
         run: make upload
 
       - name: Test documentation builds

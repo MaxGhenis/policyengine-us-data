@@ -1,4 +1,4 @@
-.PHONY: all format test install download upload docker documentation data clean build paper clean-paper presentations
+.PHONY: all format test install download upload docker documentation data validate-data clean build paper clean-paper presentations
 
 all: data test
 
@@ -71,8 +71,28 @@ data:
 	python policyengine_us_data/datasets/cps/extended_cps.py
 	python policyengine_us_data/datasets/cps/enhanced_cps.py
 	python policyengine_us_data/datasets/cps/small_enhanced_cps.py
-	mv policyengine_us_data/storage/enhanced_cps_2024.h5 policyengine_us_data/storage/dense_enhanced_cps_2024.h5
-	cp policyengine_us_data/storage/sparse_enhanced_cps_2024.h5 policyengine_us_data/storage/enhanced_cps_2024.h5
+	@echo "Swapping enhanced_cps with sparse version..."
+	@set -e; \
+	SPARSE=policyengine_us_data/storage/sparse_enhanced_cps_2024.h5; \
+	ENHANCED=policyengine_us_data/storage/enhanced_cps_2024.h5; \
+	DENSE=policyengine_us_data/storage/dense_enhanced_cps_2024.h5; \
+	test -f "$$SPARSE" || (echo "ERROR: $$SPARSE does not exist" && exit 1); \
+	SPARSE_SIZE=$$(stat -f%z "$$SPARSE" 2>/dev/null || stat -c%s "$$SPARSE"); \
+	if [ "$$SPARSE_SIZE" -lt 10485760 ]; then \
+		echo "ERROR: $$SPARSE is only $$SPARSE_SIZE bytes (expected >10MB)"; \
+		exit 1; \
+	fi; \
+	mv "$$ENHANCED" "$$DENSE"; \
+	cp "$$SPARSE" "$$ENHANCED"; \
+	RESULT_SIZE=$$(stat -f%z "$$ENHANCED" 2>/dev/null || stat -c%s "$$ENHANCED"); \
+	if [ "$$RESULT_SIZE" -lt 10485760 ]; then \
+		echo "ERROR: copied $$ENHANCED is only $$RESULT_SIZE bytes (expected >10MB)"; \
+		exit 1; \
+	fi; \
+	echo "Swap complete: enhanced_cps_2024.h5 is now the sparse version ($$RESULT_SIZE bytes)"
+
+validate-data:
+	python -c "from policyengine_us_data.storage.upload_completed_datasets import validate_all_datasets; validate_all_datasets()"
 
 clean:
 	rm -f policyengine_us_data/storage/*.h5
