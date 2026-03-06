@@ -69,9 +69,7 @@ class TestLoadGlobalBlockDistribution:
             "policyengine_us_data.calibration.clone_and_assign.STORAGE_FOLDER",
             tmp_path,
         ):
-            blocks, cds, states, probs = (
-                load_global_block_distribution.__wrapped__()
-            )
+            blocks, cds, states, probs = load_global_block_distribution.__wrapped__()
         assert len(blocks) == 9
         np.testing.assert_almost_equal(probs.sum(), 1.0)
 

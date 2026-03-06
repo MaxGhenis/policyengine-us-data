@@ -25,6 +25,4 @@ def test_small_ecps_loads(year: int):
 
     # Should have a reasonable number of households
     hh_count = len(sim.calculate("household_net_income", 2025))
-    assert hh_count > 100, (
-        f"Small ECPS has only {hh_count} households, expected > 100."
-    )
+    assert hh_count > 100, f"Small ECPS has only {hh_count} households, expected > 100."

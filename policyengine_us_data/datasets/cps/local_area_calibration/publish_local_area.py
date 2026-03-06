@@ -256,9 +256,7 @@ def build_and_upload_states(
             print(f"Skipping {state_code} (already completed)")
             continue
 
-        cd_subset = [
-            cd for cd in cds_to_calibrate if int(cd) // 100 == state_fips
-        ]
+        cd_subset = [cd for cd in cds_to_calibrate if int(cd) // 100 == state_fips]
         if not cd_subset:
             print(f"No CDs found for {state_code}, skipping")
             continue
@@ -288,9 +286,7 @@ def build_and_upload_states(
 
             # Flush HF queue every batch_size files
             if len(hf_queue) >= hf_batch_size:
-                print(
-                    f"\nUploading batch of {len(hf_queue)} files to HuggingFace..."
-                )
+                print(f"\nUploading batch of {len(hf_queue)} files to HuggingFace...")
                 upload_local_area_batch_to_hf(hf_queue)
                 hf_queue = []
 
@@ -300,9 +296,7 @@ def build_and_upload_states(
 
     # Flush remaining files to HuggingFace
     if hf_queue:
-        print(
-            f"\nUploading final batch of {len(hf_queue)} files to HuggingFace..."
-        )
+        print(f"\nUploading final batch of {len(hf_queue)} files to HuggingFace...")
         upload_local_area_batch_to_hf(hf_queue)
 
 
@@ -360,9 +354,7 @@ def build_and_upload_districts(
 
             # Flush HF queue every batch_size files
             if len(hf_queue) >= hf_batch_size:
-                print(
-                    f"\nUploading batch of {len(hf_queue)} files to HuggingFace..."
-                )
+                print(f"\nUploading batch of {len(hf_queue)} files to HuggingFace...")
                 upload_local_area_batch_to_hf(hf_queue)
                 hf_queue = []
 
@@ -372,9 +364,7 @@ def build_and_upload_districts(
 
     # Flush remaining files to HuggingFace
     if hf_queue:
-        print(
-            f"\nUploading final batch of {len(hf_queue)} files to HuggingFace..."
-        )
+        print(f"\nUploading final batch of {len(hf_queue)} files to HuggingFace...")
         upload_local_area_batch_to_hf(hf_queue)
 
 
@@ -420,9 +410,7 @@ def build_and_upload_cities(
                 )
 
                 print("Uploading NYC.h5 to GCP...")
-                upload_local_area_file(
-                    str(output_path), "cities", skip_hf=True
-                )
+                upload_local_area_file(str(output_path), "cities", skip_hf=True)
 
                 # Queue for batched HuggingFace upload
                 hf_queue.append((str(output_path), "cities"))
@@ -436,9 +424,7 @@ def build_and_upload_cities(
 
     # Flush remaining files to HuggingFace
     if hf_queue:
-        print(
-            f"\nUploading batch of {len(hf_queue)} city files to HuggingFace..."
-        )
+        print(f"\nUploading batch of {len(hf_queue)} city files to HuggingFace...")
         upload_local_area_batch_to_hf(hf_queue)
 
 
