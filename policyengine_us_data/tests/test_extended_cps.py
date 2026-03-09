@@ -9,14 +9,14 @@ Uses synthetic data to verify that:
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
 
 from policyengine_us_data.datasets.cps.extended_cps import (
     IMPUTED_VARIABLES,
     OVERRIDDEN_IMPUTED_VARIABLES,
     CPS_ONLY_IMPUTED_VARIABLES,
-    CPS_STAGE2_DEMOGRAPHIC_PREDICTORS,
     CPS_STAGE2_INCOME_PREDICTORS,
+    DEMOGRAPHIC_PREDICTORS,
+    STAGE1_EXTRA_PREDICTORS,
 )
 
 
