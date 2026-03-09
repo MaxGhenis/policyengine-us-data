@@ -4,11 +4,7 @@ from typing import Type
 from policyengine_us_data.datasets.cps.cps import *
 from policyengine_us_data.datasets.puf import *
 import pandas as pd
-import os
 from microimpute.models.qrf import QRF
-import time
-import logging
-import gc
 
 # These are sorted by magnitude.
 # First 15 contain 90%.
@@ -231,68 +227,7 @@ STAGE1_EXTRA_PREDICTORS = [
     "is_tax_unit_dependent",
 ]
 
-_QRF_SAMPLE_SIZE = 5000
-_QRF_RANDOM_STATE = 42
-
-
-def _fit_and_predict_qrf(
-    X_train: pd.DataFrame,
-    X_test: pd.DataFrame,
-    predictors: list[str],
-    outputs: list[str],
-    context: str = "",
-) -> pd.DataFrame:
-    """Shared QRF train/predict with sampling and cleanup.
-
-    microimpute's QRF automatically conditions each variable on all
-    previously imputed variables, preserving the full covariance
-    structure.
-
-    Returns a DataFrame with one column per output variable.
-    """
-    available_outputs = [col for col in outputs if col in X_train.columns]
-    missing_outputs = [col for col in outputs if col not in X_train.columns]
-
-    if missing_outputs:
-        logging.warning(
-            f"{context}: {len(missing_outputs)} variables "
-            f"not available: {missing_outputs}"
-        )
-
-    sample_size = min(_QRF_SAMPLE_SIZE, len(X_train))
-    if len(X_train) > sample_size:
-        logging.info(
-            f"{context}: sampling training data from "
-            f"{len(X_train)} to {sample_size} rows"
-        )
-        X_train = X_train.sample(n=sample_size, random_state=_QRF_RANDOM_STATE)
-
-    logging.info(
-        f"{context}: imputing {len(available_outputs)} variables "
-        f"using sequential QRF"
-    )
-    total_start = time.time()
-
-    qrf = QRF(log_level="INFO")
-    fitted_model = qrf.fit(
-        X_train=X_train[predictors + available_outputs],
-        predictors=predictors,
-        imputed_variables=available_outputs,
-        n_jobs=1,
-    )
-    result = fitted_model.predict(X_test=X_test[predictors])
-
-    del fitted_model
-    gc.collect()
-
-    for var in missing_outputs:
-        result[var] = 0
-
-    logging.info(
-        f"{context}: imputation took "
-        f"{time.time() - total_start:.2f}s total"
-    )
-    return result
+_QRF_MAX_TRAIN_SAMPLES = 5000
 
 
 def _to_entity(pred_values, variable_metadata, populations):
@@ -324,25 +259,29 @@ class ExtendedCPS(Dataset):
         )
         cps_test = cps_sim.calculate_dataframe(stage1_predictors)
 
-        y_full_imputations = _fit_and_predict_qrf(
+        qrf = QRF(
+            max_train_samples=_QRF_MAX_TRAIN_SAMPLES,
+            log_level="INFO",
+        )
+
+        y_full_imputations = qrf.fit_predict(
             X_train=puf_train,
             X_test=cps_test,
             predictors=stage1_predictors,
-            outputs=IMPUTED_VARIABLES,
-            context="Stage-1a (PUF full)",
+            imputed_variables=IMPUTED_VARIABLES,
+            n_jobs=1,
         )
 
         # Stage 1b: re-impute overridden variables for both halves.
-        y_cps_imputations = _fit_and_predict_qrf(
+        y_cps_imputations = qrf.fit_predict(
             X_train=puf_train,
             X_test=cps_test,
             predictors=stage1_predictors,
-            outputs=OVERRIDDEN_IMPUTED_VARIABLES,
-            context="Stage-1b (PUF overridden)",
+            imputed_variables=OVERRIDDEN_IMPUTED_VARIABLES,
+            n_jobs=1,
         )
 
         del puf_train, cps_test
-        gc.collect()
 
         # Stage 2: QRF-impute CPS-only variables for PUF clones.
         # Train on CPS using demographics + PUF-imputed income.
@@ -361,16 +300,15 @@ class ExtendedCPS(Dataset):
             else:
                 cps_demo[var] = cps_sim.calculate(var).values
 
-        y_cps_only_imputations = _fit_and_predict_qrf(
+        y_cps_only_imputations = qrf.fit_predict(
             X_train=cps_train,
             X_test=cps_demo,
             predictors=stage2_predictors,
-            outputs=CPS_ONLY_IMPUTED_VARIABLES,
-            context="Stage-2 (CPS-only)",
+            imputed_variables=CPS_ONLY_IMPUTED_VARIABLES,
+            n_jobs=1,
         )
 
         del cps_train, cps_demo
-        gc.collect()
 
         # --- Build extended dataset (CPS + PUF clone) ---
         cps_sim = Microsimulation(dataset=self.cps)
