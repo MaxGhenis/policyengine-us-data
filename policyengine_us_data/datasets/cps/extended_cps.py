@@ -376,12 +376,7 @@ def impute_income_variables(
     # additional predictors, preserving the full covariance
     # structure (e.g. wages, LTCG, dividends are jointly
     # plausible rather than independently sampled).
-    qrf = QRF(
-        log_level="INFO",
-        memory_efficient=True,
-        batch_size=10,
-        cleanup_interval=5,
-    )
+    qrf = QRF(log_level="INFO")
 
     fitted_model = qrf.fit(
         X_train=X_train_sampled[predictors + available_outputs],
@@ -491,12 +486,7 @@ def impute_cps_only_variables(
     # trained/predicted using all prior imputed variables as
     # additional predictors, preserving the full covariance
     # structure.
-    qrf = QRF(
-        log_level="INFO",
-        memory_efficient=True,
-        batch_size=10,
-        cleanup_interval=5,
-    )
+    qrf = QRF(log_level="INFO")
 
     fitted_model = qrf.fit(
         X_train=X_train_sampled[all_predictors + available_outputs],
