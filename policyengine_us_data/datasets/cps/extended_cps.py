@@ -355,75 +355,53 @@ def impute_income_variables(
     X_test = cps_sim.calculate_dataframe(predictors)
 
     logging.info(
-        f"Imputing {len(available_outputs)} variables using batched sequential QRF"
+        f"Imputing {len(available_outputs)} variables using " f"sequential QRF"
     )
     total_start = time.time()
 
-    # Batch variables to avoid memory issues with sequential imputation
-    batch_size = 10  # Reduce to 10 variables at a time
-    result = pd.DataFrame(index=X_test.index)
-
-    # Sample training data more aggressively upfront
-    sample_size = min(5000, len(X_train))  # Reduced from 5000
+    # Sample training data for speed / memory
+    sample_size = min(5000, len(X_train))
     if len(X_train) > sample_size:
         logging.info(
-            f"Sampling training data from {len(X_train)} to {sample_size} rows"
+            f"Sampling training data from {len(X_train)} "
+            f"to {sample_size} rows"
         )
         X_train_sampled = X_train.sample(n=sample_size, random_state=42)
     else:
         X_train_sampled = X_train
 
-    for batch_start in range(0, len(available_outputs), batch_size):
-        batch_end = min(batch_start + batch_size, len(available_outputs))
-        batch_vars = available_outputs[batch_start:batch_end]
+    # Single QRF call with all outputs — microimpute handles
+    # sequential conditioning automatically: each variable is
+    # trained/predicted using all prior imputed variables as
+    # additional predictors, preserving the full covariance
+    # structure (e.g. wages, LTCG, dividends are jointly
+    # plausible rather than independently sampled).
+    qrf = QRF(
+        log_level="INFO",
+        memory_efficient=True,
+        batch_size=10,
+        cleanup_interval=5,
+    )
 
-        logging.info(
-            f"Processing batch {batch_start//batch_size + 1}: variables {batch_start+1}-{batch_end} ({batch_vars})"
-        )
+    fitted_model = qrf.fit(
+        X_train=X_train_sampled[predictors + available_outputs],
+        predictors=predictors,
+        imputed_variables=available_outputs,
+        n_jobs=1,
+    )
 
-        # Force garbage collection before each batch
-        gc.collect()
+    result = fitted_model.predict(X_test=X_test)
 
-        # Create a fresh QRF for each batch
-        qrf = QRF(
-            log_level="INFO",
-            memory_efficient=True,
-            batch_size=10,
-            cleanup_interval=5,
-        )
-
-        # Use pre-sampled data for this batch
-        batch_X_train = X_train_sampled[predictors + batch_vars].copy()
-
-        # Fit model for this batch with sequential imputation within the batch
-        fitted_model = qrf.fit(
-            X_train=batch_X_train,
-            predictors=predictors,
-            imputed_variables=batch_vars,
-            n_jobs=1,  # Single thread to reduce memory overhead
-        )
-
-        # Predict for this batch
-        batch_predictions = fitted_model.predict(X_test=X_test)
-
-        # Extract median predictions and add to result
-        for var in batch_vars:
-            result[var] = batch_predictions[var]
-
-        # Clean up batch objects
-        del fitted_model
-        del batch_predictions
-        del batch_X_train
-        gc.collect()
-
-        logging.info(f"Completed batch {batch_start//batch_size + 1}")
+    del fitted_model
+    gc.collect()
 
     # Add zeros for missing variables
     for var in missing_outputs:
         result[var] = 0
 
     logging.info(
-        f"Imputing {len(available_outputs)} variables took {time.time() - total_start:.2f} seconds total"
+        f"Imputing {len(available_outputs)} variables took "
+        f"{time.time() - total_start:.2f} seconds total"
     )
 
     return result
