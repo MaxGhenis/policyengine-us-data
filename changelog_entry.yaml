@@ -1,0 +1,4 @@
+- bump: minor
+  changes:
+    added:
+    - QRF-impute CPS-only variables for PUF clone half instead of naively duplicating donor values

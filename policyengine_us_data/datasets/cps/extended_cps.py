@@ -136,6 +136,88 @@ OVERRIDDEN_IMPUTED_VARIABLES = [
     "rental_income_would_be_qualified",
 ]
 
+# CPS-only variables that should be QRF-imputed for the PUF clone half
+# instead of naively duplicated from the CPS donor. These are
+# income-correlated variables that exist only in the CPS; demographics,
+# IDs, weights, and random seeds are fine to duplicate.
+CPS_ONLY_IMPUTED_VARIABLES = [
+    # Retirement distributions
+    "taxable_401k_distributions",
+    "tax_exempt_401k_distributions",
+    "taxable_403b_distributions",
+    "tax_exempt_403b_distributions",
+    "roth_ira_distributions",
+    "regular_ira_distributions",
+    "keogh_distributions",
+    "taxable_sep_distributions",
+    "tax_exempt_sep_distributions",
+    "other_type_retirement_account_distributions",
+    "taxable_private_pension_income",
+    "tax_exempt_private_pension_income",
+    # Retirement contributions
+    "traditional_401k_contributions",
+    "roth_401k_contributions",
+    "roth_ira_contributions",
+    "self_employed_pension_contributions",
+    # Social Security sub-components
+    "social_security_retirement",
+    "social_security_disability",
+    "social_security_dependents",
+    "social_security_survivors",
+    # Transfer income
+    "unemployment_compensation",
+    "tanf_reported",
+    "ssi_reported",
+    "child_support_received",
+    "veterans_benefits",
+    "workers_compensation",
+    "disability_benefits",
+    "strike_benefits",
+    "receives_wic",
+    # SPM variables
+    "spm_unit_total_income_reported",
+    "snap_reported",
+    "spm_unit_capped_housing_subsidy_reported",
+    "free_school_meals_reported",
+    "spm_unit_energy_subsidy_reported",
+    "spm_unit_wic_reported",
+    "spm_unit_broadband_subsidy_reported",
+    "spm_unit_payroll_tax_reported",
+    "spm_unit_federal_tax_reported",
+    "spm_unit_state_tax_reported",
+    "spm_unit_capped_work_childcare_expenses",
+    "spm_unit_spm_threshold",
+    "spm_unit_net_income_reported",
+    "spm_unit_pre_subsidy_childcare_expenses",
+    # Medical expenses
+    "health_insurance_premiums_without_medicare_part_b",
+    "over_the_counter_health_expenses",
+    "other_medical_expenses",
+    "medicare_part_b_premiums",
+    "child_support_expense",
+    # Hours/employment
+    "weekly_hours_worked",
+    "hours_worked_last_week",
+    # Previous year income
+    "employment_income_last_year",
+    "self_employment_income_last_year",
+]
+
+# Predictors used for the second-stage CPS-only imputation: demographics
+# plus key income variables that were already imputed from PUF data.
+CPS_STAGE2_DEMOGRAPHIC_PREDICTORS = [
+    "age",
+    "is_male",
+    "tax_unit_is_joint",
+    "tax_unit_count_dependents",
+]
+
+CPS_STAGE2_INCOME_PREDICTORS = [
+    "employment_income",
+    "self_employment_income",
+    "social_security",
+]
+
 
 class ExtendedCPS(Dataset):
     cps: Type[CPS]
@@ -172,6 +254,19 @@ class ExtendedCPS(Dataset):
             predictors=INPUTS,
             outputs=OVERRIDDEN_IMPUTED_VARIABLES,
         )
+
+        # Stage 2: QRF-impute CPS-only variables for PUF clones.
+        # Train on CPS data using demographics + PUF-imputed income
+        # as predictors, so the PUF clone half gets values consistent
+        # with its imputed income rather than naive donor duplication.
+        y_cps_only_imputations = impute_cps_only_variables(
+            cps_sim,
+            y_full_imputations,
+            demographic_predictors=CPS_STAGE2_DEMOGRAPHIC_PREDICTORS,
+            income_predictors=CPS_STAGE2_INCOME_PREDICTORS,
+            outputs=CPS_ONLY_IMPUTED_VARIABLES,
+        )
+
         cps_sim = Microsimulation(dataset=self.cps)
         data = cps_sim.dataset.load_dataset()
         new_data = {}
@@ -200,6 +295,20 @@ class ExtendedCPS(Dataset):
                         entity
                     ].value_from_first_person(pred_values)
                 values = np.concatenate([values, pred_values])
+            elif variable in CPS_ONLY_IMPUTED_VARIABLES:
+                # Second-stage QRF predictions for PUF clone half
+                if variable in y_cps_only_imputations.columns:
+                    pred_values = y_cps_only_imputations[variable].values
+                    entity = variable_metadata.entity.key
+                    if entity != "person":
+                        pred_values = cps_sim.populations[
+                            entity
+                        ].value_from_first_person(pred_values)
+                    values = np.concatenate([values, pred_values])
+                else:
+                    # Variable wasn't available for imputation;
+                    # fall back to naive duplication.
+                    values = np.concatenate([values, values])
             elif variable == "person_id":
                 values = np.concatenate([values, values + values.max()])
             elif "_id" in variable:
@@ -315,6 +424,142 @@ def impute_income_variables(
 
     logging.info(
         f"Imputing {len(available_outputs)} variables took {time.time() - total_start:.2f} seconds total"
+    )
+
+    return result
+
+
+def impute_cps_only_variables(
+    cps_sim,
+    y_full_imputations: pd.DataFrame,
+    demographic_predictors: list[str],
+    income_predictors: list[str],
+    outputs: list[str],
+) -> pd.DataFrame:
+    """Second-stage QRF: train on CPS, predict for PUF clones.
+
+    For the PUF clone half of the extended CPS we need plausible values
+    of CPS-only variables (retirement distributions, transfers, hours,
+    SPM components, etc.) that are consistent with the clone's
+    PUF-imputed income — not just naively copied from the CPS donor.
+
+    We train a QRF on CPS person-level data where:
+      * predictors = demographics + key income variables
+      * outputs    = CPS-only variables listed in
+                     ``CPS_ONLY_IMPUTED_VARIABLES``
+
+    For PUF clone prediction we swap in the PUF-imputed income values
+    so the predictions reflect the clone's income profile.
+
+    Args:
+        cps_sim: CPS Microsimulation (used for training data).
+        y_full_imputations: DataFrame of PUF-imputed income values
+            (person-level, from the first-stage QRF).
+        demographic_predictors: Demographic predictor variable names.
+        income_predictors: Income predictor variable names (must be
+            columns in ``y_full_imputations``).
+        outputs: CPS-only variable names to impute.
+
+    Returns:
+        DataFrame with one column per output variable, indexed at the
+        person level, containing predicted values for the PUF clone
+        half.
+    """
+
+    all_predictors = demographic_predictors + income_predictors
+
+    # --- Build CPS training data (demographics + income + outputs) ---
+    X_train = cps_sim.calculate_dataframe(all_predictors + outputs)
+
+    available_outputs = [col for col in outputs if col in X_train.columns]
+    missing_outputs = [col for col in outputs if col not in X_train.columns]
+    if missing_outputs:
+        logging.warning(
+            f"CPS-only imputation: {len(missing_outputs)} variables "
+            f"not found in CPS: {missing_outputs}"
+        )
+
+    # --- Build PUF clone test data ---
+    # Demographics come from the CPS donor (same person), income
+    # columns come from the first-stage PUF imputation.
+    X_test = cps_sim.calculate_dataframe(demographic_predictors)
+    for var in income_predictors:
+        if var in y_full_imputations.columns:
+            X_test[var] = y_full_imputations[var].values
+        else:
+            # Fall back to CPS values if somehow missing
+            X_test[var] = cps_sim.calculate(var).values
+
+    logging.info(
+        f"Stage-2 CPS-only imputation: {len(available_outputs)} "
+        f"outputs, training on {len(X_train)} CPS persons"
+    )
+    total_start = time.time()
+
+    batch_size = 10
+    result = pd.DataFrame(index=X_test.index)
+
+    # Sample training data for speed / memory
+    sample_size = min(5000, len(X_train))
+    if len(X_train) > sample_size:
+        logging.info(
+            f"Sampling CPS training data from {len(X_train)} "
+            f"to {sample_size} rows"
+        )
+        X_train_sampled = X_train.sample(n=sample_size, random_state=42)
+    else:
+        X_train_sampled = X_train
+
+    for batch_start in range(0, len(available_outputs), batch_size):
+        batch_end = min(batch_start + batch_size, len(available_outputs))
+        batch_vars = available_outputs[batch_start:batch_end]
+
+        logging.info(
+            f"Stage-2 batch "
+            f"{batch_start // batch_size + 1}: "
+            f"variables {batch_start + 1}-{batch_end} "
+            f"({batch_vars})"
+        )
+
+        gc.collect()
+
+        qrf = QRF(
+            log_level="INFO",
+            memory_efficient=True,
+            batch_size=10,
+            cleanup_interval=5,
+        )
+
+        batch_X_train = X_train_sampled[all_predictors + batch_vars].copy()
+
+        fitted_model = qrf.fit(
+            X_train=batch_X_train,
+            predictors=all_predictors,
+            imputed_variables=batch_vars,
+            n_jobs=1,
+        )
+
+        batch_predictions = fitted_model.predict(X_test=X_test[all_predictors])
+
+        for var in batch_vars:
+            result[var] = batch_predictions[var]
+
+        del fitted_model
+        del batch_predictions
+        del batch_X_train
+        gc.collect()
+
+        logging.info(
+            f"Completed stage-2 batch " f"{batch_start // batch_size + 1}"
+        )
+
+    # Zeros for variables that weren't available in CPS
+    for var in missing_outputs:
+        result[var] = 0
+
+    logging.info(
+        f"Stage-2 CPS-only imputation took "
+        f"{time.time() - total_start:.2f}s total"
     )
 
     return result
