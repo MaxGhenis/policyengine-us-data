@@ -443,10 +443,11 @@ def impute_cps_only_variables(
     SPM components, etc.) that are consistent with the clone's
     PUF-imputed income — not just naively copied from the CPS donor.
 
-    We train a QRF on CPS person-level data where:
-      * predictors = demographics + key income variables
-      * outputs    = CPS-only variables listed in
-                     ``CPS_ONLY_IMPUTED_VARIABLES``
+    We train a single sequential QRF on CPS person-level data.
+    microimpute's QRF automatically conditions each variable on
+    all previously imputed variables, preserving the covariance
+    structure across the full set (e.g. SS retirement and SSI
+    are jointly plausible, not independently sampled).
 
     For PUF clone prediction we swap in the PUF-imputed income values
     so the predictions reflect the clone's income profile.
@@ -496,9 +497,6 @@ def impute_cps_only_variables(
     )
     total_start = time.time()
 
-    batch_size = 10
-    result = pd.DataFrame(index=X_test.index)
-
     # Sample training data for speed / memory
     sample_size = min(5000, len(X_train))
     if len(X_train) > sample_size:
@@ -510,48 +508,29 @@ def impute_cps_only_variables(
     else:
         X_train_sampled = X_train
 
-    for batch_start in range(0, len(available_outputs), batch_size):
-        batch_end = min(batch_start + batch_size, len(available_outputs))
-        batch_vars = available_outputs[batch_start:batch_end]
+    # Single QRF call with all outputs — microimpute handles
+    # sequential conditioning automatically: each variable is
+    # trained/predicted using all prior imputed variables as
+    # additional predictors, preserving the full covariance
+    # structure.
+    qrf = QRF(
+        log_level="INFO",
+        memory_efficient=True,
+        batch_size=10,
+        cleanup_interval=5,
+    )
 
-        logging.info(
-            f"Stage-2 batch "
-            f"{batch_start // batch_size + 1}: "
-            f"variables {batch_start + 1}-{batch_end} "
-            f"({batch_vars})"
-        )
+    fitted_model = qrf.fit(
+        X_train=X_train_sampled[all_predictors + available_outputs],
+        predictors=all_predictors,
+        imputed_variables=available_outputs,
+        n_jobs=1,
+    )
 
-        gc.collect()
+    result = fitted_model.predict(X_test=X_test[all_predictors])
 
-        qrf = QRF(
-            log_level="INFO",
-            memory_efficient=True,
-            batch_size=10,
-            cleanup_interval=5,
-        )
-
-        batch_X_train = X_train_sampled[all_predictors + batch_vars].copy()
-
-        fitted_model = qrf.fit(
-            X_train=batch_X_train,
-            predictors=all_predictors,
-            imputed_variables=batch_vars,
-            n_jobs=1,
-        )
-
-        batch_predictions = fitted_model.predict(X_test=X_test[all_predictors])
-
-        for var in batch_vars:
-            result[var] = batch_predictions[var]
-
-        del fitted_model
-        del batch_predictions
-        del batch_X_train
-        gc.collect()
-
-        logging.info(
-            f"Completed stage-2 batch " f"{batch_start // batch_size + 1}"
-        )
+    del fitted_model
+    gc.collect()
 
     # Zeros for variables that weren't available in CPS
     for var in missing_outputs:
