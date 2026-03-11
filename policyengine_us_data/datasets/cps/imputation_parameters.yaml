@@ -15,4 +15,21 @@ taxable_ira_distribution_fraction: 1.0
 taxable_sep_distribution_fraction: 1.0
 
 # SOI 2012 data
-long_term_capgain_fraction: 0.880  
+long_term_capgain_fraction: 0.880
+
+# SE pension contribution cap.
+# SEP-IRA / Solo 401(k) contributions are capped at the lesser of
+# a percentage of net SE earnings and a dollar limit.
+# The 25% rate is technically ~20% for sole proprietors after the
+# deduction-for-half-of-SE-tax adjustment, but 25% is the standard
+# rate for corporate plans and a reasonable approximation given that
+# CPS SEMP_VAL is gross SE income.
+# https://www.irs.gov/retirement-plans/one-participant-401k-plans
+se_pension_contribution_rate: 0.25
+se_pension_contribution_dollar_limit:
+  2020: 57000
+  2021: 58000
+  2022: 61000
+  2023: 66000
+  2024: 69000
+  2025: 70000
