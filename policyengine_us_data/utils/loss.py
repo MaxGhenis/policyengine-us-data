@@ -127,6 +127,7 @@ def build_loss_matrix(dataset: type, time_period):
         "partnership_and_s_corp_income",
         "qualified_dividends",
         "taxable_interest_income",
+        "mortgage_interest_deductions",
         "total_pension_income",
         "total_social_security",
     ]
