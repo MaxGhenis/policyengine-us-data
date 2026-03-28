@@ -125,6 +125,29 @@ def test_national_targets_loaded(built_db):
         )
 
 
+def test_jct_tax_expenditure_targets_have_distinct_reform_ids(built_db):
+    """Each JCT tax expenditure target should have its own reform id."""
+    conn = sqlite3.connect(str(built_db))
+    rows = conn.execute("""
+        SELECT t.variable, t.reform_id
+        FROM targets t
+        WHERE t.notes LIKE '%Modeled as repeal-based income tax expenditure target%'
+          AND t.notes LIKE '%Source: Joint Committee on Taxation%'
+        ORDER BY t.variable
+        """).fetchall()
+    conn.close()
+
+    expected = [
+        ("charitable_deduction", 3),
+        ("interest_deduction", 4),
+        ("medical_expense_deduction", 2),
+        ("qualified_business_income_deduction", 5),
+        ("salt_deduction", 1),
+    ]
+
+    assert rows == expected
+
+
 def test_state_income_tax_targets(built_db):
     """State income tax targets should cover all income-tax states."""
     conn = sqlite3.connect(str(built_db))
