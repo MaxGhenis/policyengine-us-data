@@ -506,14 +506,20 @@ def create_database(
     # Create validation triggers
     create_validation_triggers(engine)
 
-    # Create SQL views
-    with engine.connect() as conn:
-        conn.execute(text(STRATUM_DOMAIN_VIEW))
-        conn.execute(text(TARGET_OVERVIEW_VIEW))
-        conn.commit()
+    create_or_replace_views(engine)
 
     logger.info(f"Database and tables created successfully at {db_uri}")
     return engine
+
+
+def create_or_replace_views(engine) -> None:
+    """Refresh SQL views so existing databases pick up schema changes."""
+    with engine.connect() as conn:
+        conn.execute(text("DROP VIEW IF EXISTS stratum_domain"))
+        conn.execute(text("DROP VIEW IF EXISTS target_overview"))
+        conn.execute(text(STRATUM_DOMAIN_VIEW))
+        conn.execute(text(TARGET_OVERVIEW_VIEW))
+        conn.commit()
 
 
 if __name__ == "__main__":
