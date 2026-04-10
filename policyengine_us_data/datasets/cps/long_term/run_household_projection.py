@@ -1070,6 +1070,7 @@ for year_idx in range(n_years):
             hh_id_to_idx=current_hh_id_to_idx,
             baseline_weights=baseline_weights,
             base_weight_scale=SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE,
+            include_value_overrides=False,
         )
         if calibration_blueprint is not None:
             calibration_baseline_weights = calibration_blueprint["baseline_weights"]
