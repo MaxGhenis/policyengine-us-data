@@ -5,7 +5,7 @@ Household-level projection pathway for income tax revenue 2025-2100.
 Usage:
     python run_household_projection.py [START_YEAR] [END_YEAR] [--profile PROFILE] [--target-source SOURCE] [--tax-assumption ASSUMPTION] [--output-dir DIR] [--save-h5] [--allow-validation-failures]
     python run_household_projection.py [START_YEAR] [END_YEAR] [--profile PROFILE] [--target-source SOURCE] [--support-augmentation-profile donor-backed-synthetic-v1] [--support-augmentation-target-year YEAR]
-    python run_household_projection.py [START_YEAR] [END_YEAR] [--profile PROFILE] [--target-source SOURCE] [--support-augmentation-profile donor-backed-composite-v1] [--support-augmentation-target-year YEAR] [--support-augmentation-align-to-run-year] [--support-augmentation-blueprint-base-weight-scale SCALE]
+    python run_household_projection.py [START_YEAR] [END_YEAR] [--profile PROFILE] [--target-source SOURCE] [--support-augmentation-profile donor-backed-composite-v1] [--support-augmentation-target-year YEAR] [--support-augmentation-align-to-run-year] [--support-augmentation-blueprint-base-weight-scale SCALE] [--support-augmentation-sanitize-worker-non-target-income]
     python run_household_projection.py [START_YEAR] [END_YEAR] [--greg] [--use-ss] [--use-payroll] [--use-h6-reform] [--use-tob] [--save-h5]
 
     START_YEAR: Optional starting year (default: 2025)
@@ -19,6 +19,7 @@ Usage:
     --support-augmentation-target-year: Year whose extreme support is used to build the supplement
     --support-augmentation-align-to-run-year: Rebuild the augmentation support for each run year instead of reusing one target-year support
     --support-augmentation-blueprint-base-weight-scale: Prior scaling applied to original households when target-year donor-composite blueprint calibration is active
+    --support-augmentation-sanitize-worker-non-target-income: Zero worker-donor clone investment and retirement income when using donor-backed-composite-v1
     --greg: Use GREG calibration instead of IPF (optional)
     --use-ss: Include Social Security benefit totals as calibration target (requires --greg)
     --use-payroll: Include taxable payroll totals as calibration target (requires --greg)
@@ -382,6 +383,12 @@ if "--support-augmentation-blueprint-base-weight-scale" in sys.argv:
     )
     del sys.argv[blueprint_scale_index : blueprint_scale_index + 2]
 
+SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME = (
+    "--support-augmentation-sanitize-worker-non-target-income" in sys.argv
+)
+if SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME:
+    sys.argv.remove("--support-augmentation-sanitize-worker-non-target-income")
+
 TAX_ASSUMPTION = TRUSTEES_CORE_THRESHOLD_ASSUMPTION["name"]
 if "--tax-assumption" in sys.argv:
     tax_assumption_index = sys.argv.index("--tax-assumption")
@@ -449,6 +456,14 @@ if SUPPORT_AUGMENTATION_PROFILE is not None:
     if SUPPORT_AUGMENTATION_PROFILE not in SUPPORTED_AUGMENTATION_PROFILES:
         raise ValueError(
             f"Unsupported support augmentation profile: {SUPPORT_AUGMENTATION_PROFILE}"
+        )
+    if (
+        SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME
+        and SUPPORT_AUGMENTATION_PROFILE != "donor-backed-composite-v1"
+    ):
+        raise ValueError(
+            "--support-augmentation-sanitize-worker-non-target-income is only "
+            "supported with donor-backed-composite-v1."
         )
     if START_YEAR < SUPPORT_AUGMENTATION_START_YEAR:
         raise ValueError(
@@ -545,10 +560,10 @@ else:
 print("=" * 70)
 print(f"HOUSEHOLD-LEVEL INCOME TAX PROJECTION: {START_YEAR}-{END_YEAR}")
 print("=" * 70)
-print(f"\nConfiguration:")
+print("\nConfiguration:")
 print(f"  Base year: {BASE_YEAR} (CPS microdata)")
 print(f"  Projection: {START_YEAR}-{END_YEAR}")
-print(f"  Calculation level: HOUSEHOLD ONLY (simplified)")
+print("  Calculation level: HOUSEHOLD ONLY (simplified)")
 print(f"  Calibration profile: {PROFILE.name}")
 print(f"  Profile description: {PROFILE.description}")
 print(f"  Target source: {TARGET_SOURCE}")
@@ -564,21 +579,25 @@ if SUPPORT_AUGMENTATION_PROFILE:
         "  Support augmentation blueprint base-weight scale: "
         f"{SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE}"
     )
+    print(
+        "  Sanitize worker donor non-target income: "
+        f"{SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME}"
+    )
 if USE_SS:
-    print(f"  Including Social Security benefits constraint: Yes")
+    print("  Including Social Security benefits constraint: Yes")
 if USE_PAYROLL:
-    print(f"  Including taxable payroll constraint: Yes")
+    print("  Including taxable payroll constraint: Yes")
 if USE_H6_REFORM:
-    print(f"  Including H6 reform income impact constraint: Yes")
+    print("  Including H6 reform income impact constraint: Yes")
 if USE_TOB:
-    print(f"  Including TOB revenue constraint: Yes")
+    print("  Including TOB revenue constraint: Yes")
 elif BENCHMARK_TOB:
-    print(f"  Benchmarking TOB after calibration: Yes")
+    print("  Benchmarking TOB after calibration: Yes")
 if SAVE_H5:
     print(f"  Saving year-specific .h5 files: Yes (to {OUTPUT_DIR}/)")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 else:
-    print(f"  Saving year-specific .h5 files: No (use --save-h5 to enable)")
+    print("  Saving year-specific .h5 files: No (use --save-h5 to enable)")
 print(f"  Years to process: {END_YEAR - START_YEAR + 1}")
 est_time = (END_YEAR - START_YEAR + 1) * (3 if SAVE_H5 else 2)
 print(f"  Estimated time: ~{est_time:.0f} minutes")
@@ -612,6 +631,9 @@ def _build_support_augmentation(
             max_older_distance=SUPPORT_AUGMENTATION_MAX_DISTANCE,
             max_worker_distance=SUPPORT_AUGMENTATION_MAX_DISTANCE,
             clone_weight_scale=SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
+            sanitize_worker_non_target_income=(
+                SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME
+            ),
         )
 
     report_path = write_support_augmentation_report(
@@ -636,6 +658,9 @@ def _build_support_augmentation(
         "clone_weight_scale": SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
         "blueprint_base_weight_scale": (
             SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE
+        ),
+        "sanitize_worker_non_target_income": (
+            SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME
         ),
         "report_file": report_path.name,
         "report_summary": {
@@ -670,6 +695,9 @@ def _build_support_augmentation(
         "clone_weight_scale": SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
         "blueprint_base_weight_scale": (
             SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE
+        ),
+        "sanitize_worker_non_target_income": (
+            SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME
         ),
         "report_file": (
             None if SUPPORT_AUGMENTATION_ALIGN_TO_RUN_YEAR else report_path.name
@@ -708,7 +736,7 @@ n_years = target_matrix.shape[1]
 n_ages = target_matrix.shape[0]
 
 print(f"\nLoaded SSA projections: {n_ages} ages x {n_years} years")
-print(f"\nPopulation projections:")
+print("\nPopulation projections:")
 
 display_years = [
     y
@@ -772,6 +800,9 @@ if SUPPORT_AUGMENTATION_PROFILE is not None and SUPPORT_AUGMENTATION_ALIGN_TO_RU
         "clone_weight_scale": SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
         "blueprint_base_weight_scale": (
             SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE
+        ),
+        "sanitize_worker_non_target_income": (
+            SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME
         ),
         "report_file": None,
     }
