@@ -942,7 +942,12 @@ def build_role_composite_calibration_blueprint(
         ages.extend(int(age) for age in clone_report.get("target_dependent_ages", []))
         age_overrides[idx] = age_bucket_vector(ages, age_bins)
         ss_overrides[idx] = float(clone_report["target_ss_total"])
-        payroll_overrides[idx] = float(clone_report["target_payroll_total"])
+        payroll_overrides[idx] = float(
+            clone_report.get(
+                "target_taxable_payroll_total",
+                clone_report["target_payroll_total"],
+            )
+        )
         prior_weights[idx] = (
             clone_total_prior_weight
             * float(clone_report["per_clone_weight_share_pct"])
@@ -984,6 +989,7 @@ def _clone_report_record(
     combination_count: int,
     older_donor_row: pd.Series | None,
     worker_donor_row: pd.Series | None,
+    payroll_cap: float | None = None,
 ) -> dict[str, object]:
     household_id_col = _period_column("household_id", base_year)
     tax_unit_id_col = _period_column("tax_unit_id", base_year)
@@ -1029,6 +1035,11 @@ def _clone_report_record(
         "target_head_ss": float(target_candidate.head_ss),
         "target_spouse_ss": float(target_candidate.spouse_ss),
         "target_payroll_total": float(target_candidate.payroll_total),
+        "target_taxable_payroll_total": float(
+            target_candidate.payroll_total
+            if payroll_cap is None
+            else target_candidate.taxable_payroll_total(payroll_cap)
+        ),
         "target_ss_total": float(target_candidate.ss_total),
         "older_donor_tax_unit_id": (
             int(older_donor_row["tax_unit_id"]) if older_donor_row is not None else None
@@ -1103,7 +1114,12 @@ def summarize_realized_clone_translation(
         realized_ss_total = float(realized_row["ss_total"])
         realized_payroll_total = float(realized_row["payroll_total"])
         target_ss_total = float(clone_report["target_ss_total"])
-        target_payroll_total = float(clone_report["target_payroll_total"])
+        target_payroll_total = float(
+            clone_report.get(
+                "target_taxable_payroll_total",
+                clone_report["target_payroll_total"],
+            )
+        )
         per_clone.append(
             {
                 **clone_report,
@@ -1153,7 +1169,12 @@ def summarize_realized_clone_translation(
         .reset_index()
     )
     target_ss_total = float(matched_df["target_ss_total"].sum())
-    target_payroll_total = float(matched_df["target_payroll_total"].sum())
+    target_payroll_col = (
+        "target_taxable_payroll_total"
+        if "target_taxable_payroll_total" in matched_df
+        else "target_payroll_total"
+    )
+    target_payroll_total = float(matched_df[target_payroll_col].sum())
     realized_ss_total = float(matched_df["realized_ss_total"].sum())
     realized_payroll_total = float(matched_df["realized_payroll_total"].sum())
     return {
@@ -1380,6 +1401,7 @@ def build_role_donor_composite_candidate(
     older_donor_row: pd.Series | None,
     worker_donor_row: pd.Series | None,
     earnings_scale: float,
+    payroll_cap: float | None = None,
 ) -> SyntheticCandidate:
     target_head_payroll_share = _target_head_payroll_share(target_candidate)
     target_head_ss_share = _target_head_ss_share(target_candidate)
@@ -1409,6 +1431,16 @@ def build_role_donor_composite_candidate(
         head_ss_share = target_head_ss_share
 
     payroll_total = target_candidate.payroll_total
+    if payroll_cap is None:
+        head_wages = payroll_total * head_payroll_share
+        spouse_wages = payroll_total * (1.0 - head_payroll_share)
+    else:
+        head_wages, spouse_wages = allocate_taxable_payroll_wages(
+            payroll_total,
+            (head_payroll_share, 1.0 - head_payroll_share),
+            payroll_cap,
+            has_spouse=target_candidate.spouse_age is not None,
+        )
     ss_total = target_candidate.ss_total
     pension_income = 0.0
     dividend_income = 0.0
@@ -1424,8 +1456,8 @@ def build_role_donor_composite_candidate(
         head_age=target_candidate.head_age,
         spouse_age=target_candidate.spouse_age,
         dependent_ages=target_candidate.dependent_ages,
-        head_wages=payroll_total * head_payroll_share,
-        spouse_wages=payroll_total * (1.0 - head_payroll_share),
+        head_wages=head_wages,
+        spouse_wages=spouse_wages,
         head_ss=ss_total * head_ss_share,
         spouse_ss=ss_total * (1.0 - head_ss_share),
         pension_income=pension_income,
@@ -1445,6 +1477,7 @@ def build_role_donor_composites(
     worker_donors_per_target: int,
     max_older_distance: float = 3.0,
     max_worker_distance: float = 3.0,
+    payroll_cap: float | None = None,
 ) -> tuple[list[SyntheticCandidate], np.ndarray, dict[str, object]]:
     exact_df = summarize_exact_candidates(candidates, weights)
     target_df = exact_df[exact_df["synthetic_weight"] > 0].head(top_n_targets).copy()
@@ -1518,6 +1551,7 @@ def build_role_donor_composites(
                         older_donor_row=older_donor,
                         worker_donor_row=worker_donor,
                         earnings_scale=earnings_scale,
+                        payroll_cap=payroll_cap,
                     )
                 )
                 composite_weights.append(per_candidate_weight)
@@ -2273,9 +2307,10 @@ def build_donor_backed_augmented_input_dataframe(
         ss_scale=ss_scale,
         earnings_scale=earnings_scale,
     )
+    payroll_cap = load_policyengine_social_security_cap(target_year)
     candidates = generate_synthetic_candidates(
         pools,
-        payroll_cap=load_policyengine_social_security_cap(target_year),
+        payroll_cap=payroll_cap,
     )
     exact_weights, solve_info = solve_synthetic_support(candidates, year=target_year)
     exact_df = summarize_exact_candidates(candidates, exact_weights)
@@ -2418,9 +2453,10 @@ def build_role_composite_augmented_input_dataframe(
         ss_scale=ss_scale,
         earnings_scale=earnings_scale,
     )
+    payroll_cap = load_policyengine_social_security_cap(target_year)
     candidates = generate_synthetic_candidates(
         pools,
-        payroll_cap=load_policyengine_social_security_cap(target_year),
+        payroll_cap=payroll_cap,
     )
     exact_weights, solve_info = solve_synthetic_support(candidates, year=target_year)
     scaled_actual = build_scaled_actual_summary(
@@ -2443,6 +2479,7 @@ def build_role_composite_augmented_input_dataframe(
         worker_donors_per_target=donors_per_target,
         max_older_distance=max_older_distance,
         max_worker_distance=max_worker_distance,
+        payroll_cap=payroll_cap,
     )
     role_composite_weights, role_composite_solve_info = solve_synthetic_support(
         role_composite_candidates,
@@ -2549,6 +2586,7 @@ def build_role_composite_augmented_input_dataframe(
                 combination_count=1,
                 older_donor_row=older_row,
                 worker_donor_row=worker_row,
+                payroll_cap=payroll_cap,
             )
         )
         target_reports.append(
@@ -3167,9 +3205,10 @@ def main() -> int:
         ss_scale=ss_scale,
         earnings_scale=earnings_scale,
     )
+    payroll_cap = load_policyengine_social_security_cap(args.year)
     candidates = generate_synthetic_candidates(
         pools,
-        payroll_cap=load_policyengine_social_security_cap(args.year),
+        payroll_cap=payroll_cap,
     )
     weights, solve_info = solve_synthetic_support(candidates, year=args.year)
     solution_summary = summarize_solution(candidates, weights, actual_summary)
@@ -3204,6 +3243,7 @@ def main() -> int:
         top_n_targets=args.donor_probe_top_n,
         older_donors_per_target=args.donor_probe_k,
         worker_donors_per_target=args.donor_probe_k,
+        payroll_cap=payroll_cap,
     )
     role_donor_composite_result: dict[str, object] = {
         "candidate_count": int(len(role_composite_candidates)),
