@@ -114,20 +114,6 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
 
     direct_sum_targets = [
         {
-            "variable": "alimony_income",
-            "value": 13e9,
-            "source": "Survey-reported (post-TCJA grandfathered)",
-            "notes": "Alimony received - survey reported, not tax-filer restricted",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "alimony_expense",
-            "value": 13e9,
-            "source": "Survey-reported (post-TCJA grandfathered)",
-            "notes": "Alimony paid - survey reported, not tax-filer restricted",
-            "year": HARDCODED_YEAR,
-        },
-        {
             "variable": "medicaid",
             "value": 871.7e9,
             "source": "https://www.cms.gov/files/document/highlights.pdf",
@@ -137,8 +123,8 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
         {
             "variable": "net_worth",
             "value": 160e12,
-            "source": "Federal Reserve SCF",
-            "notes": "Total household net worth",
+            "source": "Federal Reserve Financial Accounts (Z.1, table B.101)",
+            "notes": "Households and nonprofit organizations net worth",
             "year": HARDCODED_YEAR,
         },
         {
@@ -173,27 +159,6 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
             "value": 72e9,
             "source": "Consumer Expenditure Survey",
             "notes": "OTC health products and supplies",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "child_support_expense",
-            "value": 33e9,
-            "source": "Census Bureau",
-            "notes": "Child support payments",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "child_support_received",
-            "value": 33e9,
-            "source": "Census Bureau",
-            "notes": "Child support received",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "spm_unit_capped_work_childcare_expenses",
-            "value": 348e9,
-            "source": "Census Bureau SPM",
-            "notes": "Work and childcare expenses for SPM",
             "year": HARDCODED_YEAR,
         },
         {

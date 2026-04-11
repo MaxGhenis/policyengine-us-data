@@ -12,14 +12,8 @@ HARD_CODED_TOTALS = {
     "medicare_part_b_premiums": 112e9,
     "over_the_counter_health_expenses": 72e9,
     "spm_unit_spm_threshold": 3_945e9,
-    "child_support_expense": 33e9,
-    "child_support_received": 33e9,
-    "spm_unit_capped_work_childcare_expenses": 348e9,
     "spm_unit_capped_housing_subsidy": 35e9,
     "tanf": 9e9,
-    # Alimony could be targeted via SOI
-    "alimony_income": 13e9,
-    "alimony_expense": 13e9,
     # Rough estimate, not CPS derived
     "real_estate_taxes": 500e9,  # Rough estimate between 350bn and 600bn total property tax collections
     "rent": 735e9,  # ACS total uprated by CPI

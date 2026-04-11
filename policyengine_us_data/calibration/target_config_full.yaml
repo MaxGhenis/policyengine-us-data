@@ -30,6 +30,8 @@ exclude:
     geo_level: national
   - variable: social_security_survivors
     geo_level: national
+  - variable: spm_unit_capped_work_childcare_expenses
+    geo_level: national
   # District exclusions
   - variable: aca_ptc
     geo_level: district

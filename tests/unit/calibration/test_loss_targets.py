@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from policyengine_us_data.utils.loss import (
+    HARD_CODED_TOTALS,
     _get_aca_national_targets,
     _add_ctc_targets,
     _get_medicaid_national_targets,
@@ -56,6 +57,17 @@ def test_medicaid_national_targets_use_2025_values():
     assert data_year == 2025
     assert enrollment == 69_185_225
     assert spending == pytest.approx(1_000_645_800_000.0001)
+
+
+def test_hardcoded_totals_drop_weak_survey_preservation_targets():
+    removed_targets = {
+        "alimony_income",
+        "alimony_expense",
+        "child_support_expense",
+        "child_support_received",
+        "spm_unit_capped_work_childcare_expenses",
+    }
+    assert removed_targets.isdisjoint(HARD_CODED_TOTALS)
 
 
 class _FakeArrayResult:

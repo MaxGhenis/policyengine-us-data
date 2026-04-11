@@ -206,6 +206,28 @@ class TestLoadTargetConfig:
             "geo_level": "district",
         } in include_rules
 
+    def test_training_config_excludes_weak_survey_preservation_targets(self):
+        config = load_target_config(
+            str(
+                Path(__file__).resolve().parents[3]
+                / "policyengine_us_data"
+                / "calibration"
+                / "target_config.yaml"
+            )
+        )
+
+        include_pairs = {
+            (rule["variable"], rule["geo_level"]) for rule in config["include"]
+        }
+        assert ("alimony_expense", "national") not in include_pairs
+        assert ("alimony_income", "national") not in include_pairs
+        assert ("child_support_expense", "national") not in include_pairs
+        assert ("child_support_received", "national") not in include_pairs
+        assert (
+            "spm_unit_capped_work_childcare_expenses",
+            "national",
+        ) not in include_pairs
+
 
 class TestCalibrationPackageRoundTrip:
     def test_round_trip(self, sample_targets, tmp_path):

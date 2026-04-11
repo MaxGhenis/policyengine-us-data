@@ -8,6 +8,7 @@ from policyengine_us_data.db.create_database_tables import (
     create_database,
 )
 from policyengine_us_data.db.etl_national_targets import (
+    extract_national_targets,
     load_national_targets,
 )
 
@@ -199,3 +200,16 @@ def test_load_national_targets_supports_liheap_household_counts(tmp_path, monkey
         ).first()
         assert liheap_target is not None
         assert liheap_target.value == 5_876_646
+
+
+def test_extract_national_targets_drops_weak_survey_preservation_targets():
+    targets = extract_national_targets(year=2024)
+    direct_sum_variables = {
+        target["variable"] for target in targets["direct_sum_targets"]
+    }
+
+    assert "alimony_income" not in direct_sum_variables
+    assert "alimony_expense" not in direct_sum_variables
+    assert "child_support_expense" not in direct_sum_variables
+    assert "child_support_received" not in direct_sum_variables
+    assert "spm_unit_capped_work_childcare_expenses" not in direct_sum_variables
