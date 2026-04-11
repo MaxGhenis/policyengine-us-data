@@ -28,8 +28,6 @@ exclude:
     geo_level: national
   - variable: person_count
     geo_level: national
-  - variable: real_estate_taxes
-    geo_level: national
   - variable: rent
     geo_level: national
   - variable: social_security_dependents

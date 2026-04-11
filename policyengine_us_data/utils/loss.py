@@ -15,7 +15,10 @@ from policyengine_us_data.storage.calibration_targets.soi_metadata import (
 from policyengine_us_data.utils.cms_medicare import (
     get_beneficiary_paid_medicare_part_b_premiums_target,
 )
-from policyengine_us_data.db.etl_irs_soi import get_national_geography_soi_target
+from policyengine_us_data.db.etl_irs_soi import (
+    get_national_geography_soi_target,
+    get_state_geography_soi_targets,
+)
 from policyengine_core.reforms import Reform
 from policyengine_us_data.utils.soi import pe_to_soi, get_soi
 
@@ -351,6 +354,77 @@ def _add_ctc_targets(loss_matrix, targets_list, sim, time_period):
     return targets_list, loss_matrix
 
 
+def _add_real_estate_tax_targets(loss_matrix, targets_list, sim, time_period):
+    """Add IRS SOI real-estate-tax amount and count targets.
+
+    These targets correspond to itemizing filers with positive Schedule A
+    real-estate-tax amounts from the IRS geography file, not survey-reported
+    household property-tax payments.
+    """
+    target = get_national_geography_soi_target("real_estate_taxes", time_period)
+
+    real_estate_taxes_person = sim.calculate(
+        "real_estate_taxes",
+        period=time_period,
+    ).values.astype(np.float32)
+    real_estate_taxes_tax_unit = sim.map_result(
+        real_estate_taxes_person,
+        "person",
+        "tax_unit",
+    ).astype(np.float32)
+    is_filer = sim.calculate("tax_unit_is_filer", period=time_period).values > 0
+    itemizes = sim.calculate("tax_unit_itemizes", period=time_period).values > 0
+    domain_mask = is_filer & itemizes & (real_estate_taxes_tax_unit > 0)
+
+    household_amount = sim.map_result(
+        real_estate_taxes_tax_unit * domain_mask.astype(np.float32),
+        "tax_unit",
+        "household",
+    ).astype(np.float32)
+    household_count = sim.map_result(
+        domain_mask.astype(np.float32),
+        "tax_unit",
+        "household",
+    ).astype(np.float32)
+
+    label = "nation/irs/real_estate_taxes"
+    loss_matrix[label] = household_amount
+    if any(pd.isna(loss_matrix[label])):
+        raise ValueError(f"Missing values for {label}")
+    targets_list.append(target["amount"])
+
+    label = "nation/irs/real_estate_taxes_count"
+    loss_matrix[label] = household_count
+    if any(pd.isna(loss_matrix[label])):
+        raise ValueError(f"Missing values for {label}")
+    targets_list.append(target["count"])
+
+    state_code = sim.calculate(
+        "state_code",
+        map_to="household",
+        period=time_period,
+    ).values
+    for state_target in get_state_geography_soi_targets(
+        "real_estate_taxes",
+        time_period,
+    ):
+        in_state = (state_code == state_target["state_code"]).astype(np.float32)
+
+        label = f"state/irs/real_estate_taxes/{state_target['state_code']}"
+        loss_matrix[label] = household_amount * in_state
+        if any(pd.isna(loss_matrix[label])):
+            raise ValueError(f"Missing values for {label}")
+        targets_list.append(state_target["amount"])
+
+        label = f"state/irs/real_estate_taxes_count/{state_target['state_code']}"
+        loss_matrix[label] = household_count * in_state
+        if any(pd.isna(loss_matrix[label])):
+            raise ValueError(f"Missing values for {label}")
+        targets_list.append(state_target["count"])
+
+    return targets_list, loss_matrix
+
+
 def build_loss_matrix(dataset: type, time_period):
     loss_matrix = pd.DataFrame()
     df = pe_to_soi(dataset, time_period)
@@ -610,6 +684,12 @@ def build_loss_matrix(dataset: type, time_period):
         targets_array.append(row["eitc_total"] * eitc_spending_uprating)
 
     targets_array, loss_matrix = _add_ctc_targets(
+        loss_matrix,
+        targets_array,
+        sim,
+        time_period,
+    )
+    targets_array, loss_matrix = _add_real_estate_tax_targets(
         loss_matrix,
         targets_array,
         sim,

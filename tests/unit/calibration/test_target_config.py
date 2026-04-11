@@ -229,13 +229,41 @@ class TestLoadTargetConfig:
         ) not in include_pairs
         assert ("other_medical_expenses", "national") not in include_pairs
         assert ("over_the_counter_health_expenses", "national") not in include_pairs
-        assert ("real_estate_taxes", "national") not in include_pairs
         assert ("rent", "national") not in include_pairs
         assert ("spm_unit_capped_housing_subsidy", "national") not in include_pairs
         assert (
             "spm_unit_capped_work_childcare_expenses",
             "national",
         ) not in include_pairs
+
+    def test_training_config_includes_real_estate_tax_soi_targets(self):
+        config = load_target_config(
+            str(
+                Path(__file__).resolve().parents[3]
+                / "policyengine_us_data"
+                / "calibration"
+                / "target_config.yaml"
+            )
+        )
+
+        include_rules = config["include"]
+        assert {"variable": "real_estate_taxes", "geo_level": "national"} in include_rules
+        assert {"variable": "real_estate_taxes", "geo_level": "state"} in include_rules
+        assert {
+            "variable": "tax_unit_count",
+            "geo_level": "national",
+            "domain_variable": "real_estate_taxes,tax_unit_itemizes",
+        } in include_rules
+        assert {
+            "variable": "tax_unit_count",
+            "geo_level": "state",
+            "domain_variable": "real_estate_taxes,tax_unit_itemizes",
+        } in include_rules
+        assert {
+            "variable": "tax_unit_count",
+            "geo_level": "district",
+            "domain_variable": "real_estate_taxes,tax_unit_itemizes",
+        } in include_rules
 
 
 class TestCalibrationPackageRoundTrip:

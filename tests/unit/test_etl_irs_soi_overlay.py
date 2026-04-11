@@ -16,6 +16,7 @@ from policyengine_us_data.db.etl_irs_soi import (
     get_geography_soi_year,
     get_national_geography_soi_agi_targets,
     get_national_geography_soi_target,
+    get_state_geography_soi_targets,
     _get_geography_file_aggregate_target_spec,
     _skip_coarse_state_agi_person_count_target,
     _get_or_create_national_domain_stratum,
@@ -315,6 +316,65 @@ def test_get_national_geography_soi_agi_targets_aggregates_state_rows(monkeypatc
             "agi_upper_bound": 10_000.0,
             "count": 8.0,
             "amount": 11_000.0,
+        },
+    ]
+
+
+def test_get_state_geography_soi_targets_reads_state_amounts_and_counts(monkeypatch):
+    fake_raw = pd.DataFrame(
+        [
+            {
+                "STATE": "US",
+                "CONG_DISTRICT": 0,
+                "agi_stub": 0,
+                "N18500": 99.0,
+                "A18500": 999.0,
+            },
+            {
+                "STATE": "CA",
+                "CONG_DISTRICT": 0,
+                "agi_stub": 0,
+                "N18500": 10.0,
+                "A18500": 20.0,
+            },
+            {
+                "STATE": "NY",
+                "CONG_DISTRICT": 0,
+                "agi_stub": 0,
+                "N18500": 3.0,
+                "A18500": 7.0,
+            },
+            {
+                "STATE": "CA",
+                "CONG_DISTRICT": 12,
+                "agi_stub": 0,
+                "N18500": 100.0,
+                "A18500": 100.0,
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        "policyengine_us_data.db.etl_irs_soi.extract_soi_data",
+        lambda year: fake_raw,
+    )
+
+    targets = get_state_geography_soi_targets("real_estate_taxes", 2024)
+
+    assert targets == [
+        {
+            "variable": "real_estate_taxes",
+            "source_year": 2022,
+            "state_code": "CA",
+            "count": 10.0,
+            "amount": 20_000.0,
+        },
+        {
+            "variable": "real_estate_taxes",
+            "source_year": 2022,
+            "state_code": "NY",
+            "count": 3.0,
+            "amount": 7_000.0,
         },
     ]
 
