@@ -10,8 +10,6 @@ HARD_CODED_TOTALS = {
     "medicare_part_b_premiums": 112e9,
     "spm_unit_spm_threshold": 3_945e9,
     "tanf": 9e9,
-    # Rough estimate, not CPS derived
-    "real_estate_taxes": 500e9,  # Rough estimate between 350bn and 600bn total property tax collections
     # Table 5A from https://www.irs.gov/statistics/soi-tax-stats-individual-information-return-form-w2-statistics
     # shows $38,316,190,000 in Box 7: Social security tips (2018)
     # Wages and salaries grew 32% from 2018 to 2023: https://fred.stlouisfed.org/graph/?g=1J0CC

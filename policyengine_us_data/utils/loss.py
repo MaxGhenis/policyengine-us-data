@@ -32,8 +32,6 @@ HARD_CODED_TOTALS = {
     ),
     "spm_unit_spm_threshold": 3_945e9,
     "tanf": 9e9,
-    # Rough estimate, not CPS derived
-    "real_estate_taxes": 500e9,  # Rough estimate between 350bn and 600bn total property tax collections
     # Table 5A from https://www.irs.gov/statistics/soi-tax-stats-individual-information-return-form-w2-statistics
     # shows $38,316,190,000 in Box 7: Social security tips (2018)
     # Wages and salaries grew 32% from 2018 to 2023: https://fred.stlouisfed.org/graph/?g=1J0CC
@@ -896,10 +894,6 @@ def build_loss_matrix(dataset: type, time_period):
     targets_array.extend(agi_state_targets)
     loss_matrix = _add_agi_metric_columns(loss_matrix, sim)
 
-    targets_array, loss_matrix = _add_state_real_estate_taxes(
-        loss_matrix, targets_array, sim
-    )
-
     snap_state_target_names, snap_state_targets = _add_snap_state_targets(sim)
     targets_array.extend(snap_state_targets)
     loss_matrix = _add_snap_metric_columns(loss_matrix, sim)
@@ -1030,41 +1024,6 @@ def _add_agi_metric_columns(
         loss_matrix[col_name] = metric
 
     return loss_matrix
-
-
-def _add_state_real_estate_taxes(loss_matrix, targets_list, sim):
-    """
-    Add state real estate taxes to the loss matrix and targets list.
-    """
-    # Read the real estate taxes data
-    real_estate_taxes_targets = pd.read_csv(
-        CALIBRATION_FOLDER / "real_estate_taxes_by_state_acs.csv"
-    )
-    national_total = HARD_CODED_TOTALS["real_estate_taxes"]
-    state_sum = real_estate_taxes_targets["real_estate_taxes_bn"].sum() * 1e9
-    national_to_state_diff = national_total / state_sum
-    real_estate_taxes_targets["real_estate_taxes_bn"] *= national_to_state_diff
-    real_estate_taxes_targets["real_estate_taxes_bn"] = (
-        real_estate_taxes_targets["real_estate_taxes_bn"] * 1e9
-    )
-
-    assert np.isclose(
-        real_estate_taxes_targets["real_estate_taxes_bn"].sum(),
-        national_total,
-        rtol=1e-8,
-    ), "Real estate tax totals do not sum to national target"
-
-    targets_list.extend(real_estate_taxes_targets["real_estate_taxes_bn"].tolist())
-
-    real_estate_taxes = sim.calculate("real_estate_taxes", map_to="household").values
-    state = sim.calculate("state_code", map_to="household").values
-
-    for _, r in real_estate_taxes_targets.iterrows():
-        in_state = (state == r["state_code"]).astype(float)
-        label = f"state/real_estate_taxes/{r['state_code']}"
-        loss_matrix[label] = real_estate_taxes * in_state
-
-    return targets_list, loss_matrix
 
 
 def _add_snap_state_targets(sim):

@@ -96,8 +96,6 @@ include:
     geo_level: national
   - variable: medicare_part_b_premiums
     geo_level: national
-  - variable: real_estate_taxes
-    geo_level: national
   - variable: snap
     geo_level: national
   - variable: social_security

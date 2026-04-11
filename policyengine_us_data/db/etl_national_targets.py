@@ -148,13 +148,6 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
             "year": HARDCODED_YEAR,
         },
         {
-            "variable": "real_estate_taxes",
-            "value": 500e9,
-            "source": "Census Bureau",
-            "notes": "Property taxes paid",
-            "year": HARDCODED_YEAR,
-        },
-        {
             "variable": "tip_income",
             "value": 53.2e9,
             "source": "IRS Form W-2 Box 7 statistics",

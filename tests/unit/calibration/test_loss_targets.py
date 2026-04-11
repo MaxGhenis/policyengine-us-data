@@ -69,6 +69,7 @@ def test_hardcoded_totals_drop_weak_survey_preservation_targets():
         "health_insurance_premiums_without_medicare_part_b",
         "other_medical_expenses",
         "over_the_counter_health_expenses",
+        "real_estate_taxes",
         "rent",
         "spm_unit_capped_housing_subsidy",
         "spm_unit_capped_work_childcare_expenses",

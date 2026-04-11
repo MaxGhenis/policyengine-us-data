@@ -229,6 +229,7 @@ class TestLoadTargetConfig:
         ) not in include_pairs
         assert ("other_medical_expenses", "national") not in include_pairs
         assert ("over_the_counter_health_expenses", "national") not in include_pairs
+        assert ("real_estate_taxes", "national") not in include_pairs
         assert ("rent", "national") not in include_pairs
         assert ("spm_unit_capped_housing_subsidy", "national") not in include_pairs
         assert (
