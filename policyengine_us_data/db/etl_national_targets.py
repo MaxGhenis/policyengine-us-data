@@ -128,20 +128,6 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
             "year": HARDCODED_YEAR,
         },
         {
-            "variable": "health_insurance_premiums_without_medicare_part_b",
-            "value": 385e9,
-            "source": "MEPS/NHEA",
-            "notes": "Health insurance premiums excluding Medicare Part B",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "other_medical_expenses",
-            "value": 278e9,
-            "source": "MEPS/NHEA",
-            "notes": "Out-of-pocket medical expenses",
-            "year": HARDCODED_YEAR,
-        },
-        {
             "variable": "medicare_part_b_premiums",
             "value": get_beneficiary_paid_medicare_part_b_premiums_target(
                 HARDCODED_YEAR
@@ -152,20 +138,6 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
             "notes": get_beneficiary_paid_medicare_part_b_premiums_notes(
                 HARDCODED_YEAR
             ),
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "over_the_counter_health_expenses",
-            "value": 72e9,
-            "source": "Consumer Expenditure Survey",
-            "notes": "OTC health products and supplies",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "spm_unit_capped_housing_subsidy",
-            "value": 35e9,
-            "source": "HUD/Census",
-            "notes": "Housing subsidies",
             "year": HARDCODED_YEAR,
         },
         {
@@ -180,13 +152,6 @@ def extract_national_targets(year: int = DEFAULT_YEAR):
             "value": 500e9,
             "source": "Census Bureau",
             "notes": "Property taxes paid",
-            "year": HARDCODED_YEAR,
-        },
-        {
-            "variable": "rent",
-            "value": 735e9,
-            "source": "Census Bureau/BLS",
-            "notes": "Rental payments",
             "year": HARDCODED_YEAR,
         },
         {

@@ -27,18 +27,13 @@ from policyengine_us_data.utils.soi import pe_to_soi, get_soi
 # database so this dict can be deleted.  See PR #488.
 
 HARD_CODED_TOTALS = {
-    "health_insurance_premiums_without_medicare_part_b": 385e9,
-    "other_medical_expenses": 278e9,
     "medicare_part_b_premiums": get_beneficiary_paid_medicare_part_b_premiums_target(
         2024
     ),
-    "over_the_counter_health_expenses": 72e9,
     "spm_unit_spm_threshold": 3_945e9,
-    "spm_unit_capped_housing_subsidy": 35e9,
     "tanf": 9e9,
     # Rough estimate, not CPS derived
     "real_estate_taxes": 500e9,  # Rough estimate between 350bn and 600bn total property tax collections
-    "rent": 735e9,  # ACS total uprated by CPI
     # Table 5A from https://www.irs.gov/statistics/soi-tax-stats-individual-information-return-form-w2-statistics
     # shows $38,316,190,000 in Box 7: Social security tips (2018)
     # Wages and salaries grew 32% from 2018 to 2023: https://fred.stlouisfed.org/graph/?g=1J0CC
@@ -111,6 +106,8 @@ ACA_SPENDING_TARGETS = {
 ACA_ENROLLMENT_TARGETS = {
     2024: 19_743_689,
 }
+
+AGE_BUCKETED_HEALTH_TARGETS = ("medicare_part_b_premiums",)
 
 MEDICAID_SPENDING_TARGETS = {
     2024: 9e11,
@@ -675,19 +672,16 @@ def build_loss_matrix(dataset: type, time_period):
     ).astype(float)
     targets_array.append(3e6)
 
-    # Healthcare spending by age
+    # Healthcare spending by age. Keep only the Medicare Part B series
+    # here; the other household spending aggregates are weaker survey-
+    # based targets removed from calibration until replaced.
 
     healthcare = pd.read_csv(CALIBRATION_FOLDER / "healthcare_spending.csv")
 
     for _, row in healthcare.iterrows():
         age_lower_bound = int(row["age_10_year_lower_bound"])
         in_age_range = (age >= age_lower_bound) * (age < age_lower_bound + 10)
-        for expense_type in [
-            "health_insurance_premiums_without_medicare_part_b",
-            "over_the_counter_health_expenses",
-            "other_medical_expenses",
-            "medicare_part_b_premiums",
-        ]:
+        for expense_type in AGE_BUCKETED_HEALTH_TARGETS:
             label = f"nation/census/{expense_type}/age_{age_lower_bound}_to_{age_lower_bound + 9}"
             value = sim.calculate(expense_type).values
             loss_matrix[label] = sim.map_result(

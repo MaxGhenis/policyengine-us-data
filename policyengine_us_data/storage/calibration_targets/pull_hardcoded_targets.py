@@ -3,20 +3,15 @@ import numpy as np
 from policyengine_us_data.storage import CALIBRATION_FOLDER
 
 """
-Hardcoded targets for the year 2024 from CPS-derived statistics and other sources. Include medical expenses, sum of SPM thresholds, and child support expenses.
+Hardcoded targets for the year 2024 from CPS-derived statistics and other sources.
 """
 
 HARD_CODED_TOTALS = {
-    "health_insurance_premiums_without_medicare_part_b": 385e9,
-    "other_medical_expenses": 278e9,
     "medicare_part_b_premiums": 112e9,
-    "over_the_counter_health_expenses": 72e9,
     "spm_unit_spm_threshold": 3_945e9,
-    "spm_unit_capped_housing_subsidy": 35e9,
     "tanf": 9e9,
     # Rough estimate, not CPS derived
     "real_estate_taxes": 500e9,  # Rough estimate between 350bn and 600bn total property tax collections
-    "rent": 735e9,  # ACS total uprated by CPI
     # Table 5A from https://www.irs.gov/statistics/soi-tax-stats-individual-information-return-form-w2-statistics
     # shows $38,316,190,000 in Box 7: Social security tips (2018)
     # Wages and salaries grew 32% from 2018 to 2023: https://fred.stlouisfed.org/graph/?g=1J0CC

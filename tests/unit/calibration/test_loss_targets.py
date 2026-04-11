@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from policyengine_us_data.utils.loss import (
+    AGE_BUCKETED_HEALTH_TARGETS,
     HARD_CODED_TOTALS,
     _get_aca_national_targets,
     _add_ctc_targets,
@@ -65,9 +66,18 @@ def test_hardcoded_totals_drop_weak_survey_preservation_targets():
         "alimony_expense",
         "child_support_expense",
         "child_support_received",
+        "health_insurance_premiums_without_medicare_part_b",
+        "other_medical_expenses",
+        "over_the_counter_health_expenses",
+        "rent",
+        "spm_unit_capped_housing_subsidy",
         "spm_unit_capped_work_childcare_expenses",
     }
     assert removed_targets.isdisjoint(HARD_CODED_TOTALS)
+
+
+def test_age_bucketed_health_targets_keep_only_medicare_part_b():
+    assert AGE_BUCKETED_HEALTH_TARGETS == ("medicare_part_b_premiums",)
 
 
 class _FakeArrayResult:

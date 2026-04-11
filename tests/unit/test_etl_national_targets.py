@@ -212,4 +212,12 @@ def test_extract_national_targets_drops_weak_survey_preservation_targets():
     assert "alimony_expense" not in direct_sum_variables
     assert "child_support_expense" not in direct_sum_variables
     assert "child_support_received" not in direct_sum_variables
+    assert (
+        "health_insurance_premiums_without_medicare_part_b"
+        not in direct_sum_variables
+    )
+    assert "other_medical_expenses" not in direct_sum_variables
+    assert "over_the_counter_health_expenses" not in direct_sum_variables
+    assert "rent" not in direct_sum_variables
+    assert "spm_unit_capped_housing_subsidy" not in direct_sum_variables
     assert "spm_unit_capped_work_childcare_expenses" not in direct_sum_variables

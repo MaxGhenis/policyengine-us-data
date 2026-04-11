@@ -224,6 +224,14 @@ class TestLoadTargetConfig:
         assert ("child_support_expense", "national") not in include_pairs
         assert ("child_support_received", "national") not in include_pairs
         assert (
+            "health_insurance_premiums_without_medicare_part_b",
+            "national",
+        ) not in include_pairs
+        assert ("other_medical_expenses", "national") not in include_pairs
+        assert ("over_the_counter_health_expenses", "national") not in include_pairs
+        assert ("rent", "national") not in include_pairs
+        assert ("spm_unit_capped_housing_subsidy", "national") not in include_pairs
+        assert (
             "spm_unit_capped_work_childcare_expenses",
             "national",
         ) not in include_pairs

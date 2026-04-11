@@ -88,21 +88,15 @@ include:
   #   balance constraints rather than hard totals.
   # - spm_unit_capped_work_childcare_expenses is a CPS/SPM
   #   preservation target, not an admin-backed calibration target.
+  # - non-Part-B health expense targets are survey/account-based
+  #   household spending aggregates we should replace before restoring.
   - variable: eitc
-    geo_level: national
-  - variable: health_insurance_premiums_without_medicare_part_b
     geo_level: national
   - variable: medicaid
     geo_level: national
   - variable: medicare_part_b_premiums
     geo_level: national
-  - variable: other_medical_expenses
-    geo_level: national
-  - variable: over_the_counter_health_expenses
-    geo_level: national
   - variable: real_estate_taxes
-    geo_level: national
-  - variable: rent
     geo_level: national
   - variable: snap
     geo_level: national
@@ -115,8 +109,6 @@ include:
   - variable: social_security_retirement
     geo_level: national
   - variable: social_security_survivors
-    geo_level: national
-  - variable: spm_unit_capped_housing_subsidy
     geo_level: national
   - variable: ssi
     geo_level: national
