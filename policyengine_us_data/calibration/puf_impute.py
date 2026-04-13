@@ -50,9 +50,12 @@ IMPUTED_VARIABLES = [
     "pre_tax_contributions",
     "taxable_ira_distributions",
     "self_employment_income",
+    "sstb_self_employment_income",
     "w2_wages_from_qualified_business",
     "unadjusted_basis_qualified_property",
     "business_is_sstb",
+    "sstb_w2_wages_from_qualified_business",
+    "sstb_unadjusted_basis_qualified_property",
     "short_term_capital_gains",
     "qualified_dividend_income",
     "charitable_cash_donations",
@@ -122,6 +125,8 @@ OVERRIDDEN_IMPUTED_VARIABLES = [
     "w2_wages_from_qualified_business",
     "unadjusted_basis_qualified_property",
     "business_is_sstb",
+    "sstb_w2_wages_from_qualified_business",
+    "sstb_unadjusted_basis_qualified_property",
     "charitable_cash_donations",
     "self_employed_pension_contribution_ald",
     "unrecaptured_section_1250_gain",
@@ -513,7 +518,7 @@ def puf_clone_dataset(
         elif variable in IMPUTED_VARIABLES and y_full:
             pred = _map_to_entity(y_full[variable], variable)
             new_data[variable] = {time_period: np.concatenate([values, pred])}
-        elif "_id" in variable:
+        elif "_id" in variable and np.issubdtype(values.dtype, np.number):
             new_data[variable] = {
                 time_period: np.concatenate([values, values + values.max()])
             }
@@ -582,7 +587,6 @@ def _impute_weeks_unemployed(
     except (ValueError, KeyError):
         logger.warning("weeks_unemployed not in CPS, returning zeros")
         n_persons = len(data["person_id"][time_period])
-        del cps_sim
         return np.zeros(n_persons)
 
     WEEKS_PREDICTORS = [
@@ -685,7 +689,6 @@ def _impute_retirement_contributions(
     except (ValueError, KeyError) as e:
         logger.warning("Could not build retirement training data: %s", e)
         n_persons = len(data["person_id"][time_period])
-        del cps_sim
         return {var: np.zeros(n_persons) for var in CPS_RETIREMENT_VARIABLES}
 
     # Build test data: demographics from CPS sim, income from PUF
@@ -695,6 +698,11 @@ def _impute_retirement_contributions(
             X_test[income_var] = puf_imputations[income_var]
         else:
             X_test[income_var] = cps_sim.calculate(income_var).values
+    if "sstb_self_employment_income" in puf_imputations:
+        X_test["self_employment_income"] = (
+            X_test["self_employment_income"]
+            + puf_imputations["sstb_self_employment_income"]
+        )
 
     del cps_sim
 
@@ -725,13 +733,13 @@ def _impute_retirement_contributions(
     catch_up_eligible = age >= 50
     limit_401k = limits["401k"] + catch_up_eligible * limits["401k_catch_up"]
     limit_ira = limits["ira"] + catch_up_eligible * limits["ira_catch_up"]
+    se_income = X_test["self_employment_income"].values
     se_pension_cap = np.minimum(
-        X_test["self_employment_income"].values * limits["se_pension_rate"],
+        se_income * limits["se_pension_rate"],
         limits["se_pension_dollar_limit"],
     )
 
     emp_income = X_test["employment_income"].values
-    se_income = X_test["self_employment_income"].values
 
     result = {}
     for var in CPS_RETIREMENT_VARIABLES:
@@ -812,9 +820,7 @@ def _run_qrf_imputation(
     del puf_sim
 
     sub_idx = _stratified_subsample_index(puf_agi)
-    logger.info(
-        "Stratified PUF subsample: %d -> %d records "
-        "(top %.1f%% preserved, AGI threshold $%,.0f)",
+    _log_stratified_subsample(
         len(puf_agi),
         len(sub_idx),
         100 - PUF_TOP_PERCENTILE,
@@ -881,6 +887,22 @@ def _stratified_subsample_index(
     selected = np.concatenate([top_idx, selected_bottom])
     selected.sort()
     return selected
+
+
+def _log_stratified_subsample(
+    original_n: int,
+    selected_n: int,
+    top_percent_preserved: float,
+    agi_threshold: float,
+) -> None:
+    logger.info(
+        "Stratified PUF subsample: %d -> %d records "
+        "(top %.1f%% preserved, AGI threshold $%s)",
+        original_n,
+        selected_n,
+        top_percent_preserved,
+        f"{agi_threshold:,.0f}",
+    )
 
 
 def _sequential_qrf(

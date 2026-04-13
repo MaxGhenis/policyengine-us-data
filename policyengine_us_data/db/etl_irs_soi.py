@@ -65,7 +65,7 @@ GEOGRAPHY_FILE_TARGET_SPECS = [
         name="qualified_business_income_deduction",
         breakdown=None,
     ),
-    dict(code="00900", name="self_employment_income", breakdown=None),
+    dict(code="00900", name="total_self_employment_income", breakdown=None),
     dict(
         code="01000",
         name="net_capital_gains",
@@ -147,7 +147,7 @@ WORKBOOK_NATIONAL_DOMAIN_TARGETS = {
     "net_capital_gains": "capital_gains_gross",
     "qualified_dividend_income": "qualified_dividends",
     "rental_income": "rent_and_royalty_net_income",
-    "self_employment_income": "business_net_profits",
+    "total_self_employment_income": "business_net_profits",
     "tax_exempt_interest_income": "exempt_interest",
     "tax_unit_partnership_s_corp_income": "partnership_and_s_corp_income",
     "taxable_interest_income": "taxable_interest_income",
@@ -156,6 +156,8 @@ WORKBOOK_NATIONAL_DOMAIN_TARGETS = {
     "taxable_social_security": "taxable_social_security",
     "unemployment_compensation": "unemployment_compensation",
 }
+
+CTC_GEOGRAPHY_TARGET_VARIABLES = ("refundable_ctc", "non_refundable_ctc")
 
 
 def create_records(df, breakdown_variable, target_variable):
@@ -384,6 +386,54 @@ def _get_national_geography_soi_target_from_year(
     }
 
 
+def _get_national_geography_soi_agi_targets_from_year(
+    variable: str,
+    geography_year: int,
+) -> list[dict]:
+    spec = _get_geography_file_aggregate_target_spec(variable)
+    code = spec["code"]
+
+    raw_df = extract_soi_data(geography_year)
+    if "CONG_DISTRICT" in raw_df.columns:
+        district_mask = raw_df["CONG_DISTRICT"] == 0
+    else:
+        district_mask = True
+    state_rows = raw_df[
+        (raw_df["STATE"] != "US")
+        & district_mask
+        & raw_df["agi_stub"].isin(AGI_STUB_TO_INCOME_RANGE)
+    ]
+    if state_rows.empty:
+        raise ValueError(
+            f"IRS geography SOI file for {geography_year} is missing state AGI rows "
+            f"for {variable}"
+        )
+
+    grouped = (
+        state_rows.groupby("agi_stub", sort=True)[[f"N{code}", f"A{code}"]]
+        .sum()
+        .reset_index()
+    )
+
+    targets = []
+    for row in grouped.itertuples(index=False):
+        agi_stub = int(row.agi_stub)
+        agi_lower_bound, agi_upper_bound = AGI_STUB_TO_INCOME_RANGE[agi_stub]
+        targets.append(
+            {
+                "variable": variable,
+                "source_year": geography_year,
+                "agi_stub": agi_stub,
+                "agi_lower_bound": float(agi_lower_bound),
+                "agi_upper_bound": float(agi_upper_bound),
+                "count": float(getattr(row, f"N{code}")),
+                "amount": float(getattr(row, f"A{code}")) * 1_000,
+            }
+        )
+
+    return targets
+
+
 def get_national_geography_soi_target(
     variable: str,
     dataset_year: int,
@@ -393,6 +443,17 @@ def get_national_geography_soi_target(
     """Return national count and amount targets from the IRS geography file."""
     geography_year = get_geography_soi_year(dataset_year, lag=lag)
     return _get_national_geography_soi_target_from_year(variable, geography_year)
+
+
+def get_national_geography_soi_agi_targets(
+    variable: str,
+    dataset_year: int,
+    *,
+    lag: int = IRS_SOI_LAG_YEARS,
+) -> list[dict]:
+    """Return national AGI-band count and amount targets from the geography file."""
+    geography_year = get_geography_soi_year(dataset_year, lag=lag)
+    return _get_national_geography_soi_agi_targets_from_year(variable, geography_year)
 
 
 def _upsert_target(
@@ -469,11 +530,64 @@ def _get_or_create_national_domain_stratum(
     return stratum
 
 
+def _get_or_create_national_agi_domain_stratum(
+    session: Session,
+    national_filer_stratum_id: int,
+    variable: str,
+    agi_lower_bound: float,
+    agi_upper_bound: float,
+) -> Stratum:
+    note = (
+        "National filers, AGI >= "
+        f"{agi_lower_bound}, AGI < {agi_upper_bound}, {variable} > 0"
+    )
+    stratum = session.exec(
+        select(Stratum).where(
+            Stratum.parent_stratum_id == national_filer_stratum_id,
+            Stratum.notes == note,
+        )
+    ).first()
+    if stratum:
+        return stratum
+
+    stratum = Stratum(
+        parent_stratum_id=national_filer_stratum_id,
+        notes=note,
+    )
+    stratum.constraints_rel.extend(
+        [
+            StratumConstraint(
+                constraint_variable="tax_unit_is_filer",
+                operation="==",
+                value="1",
+            ),
+            StratumConstraint(
+                constraint_variable="adjusted_gross_income",
+                operation=">=",
+                value=str(agi_lower_bound),
+            ),
+            StratumConstraint(
+                constraint_variable="adjusted_gross_income",
+                operation="<",
+                value=str(agi_upper_bound),
+            ),
+            StratumConstraint(
+                constraint_variable=variable,
+                operation=">",
+                value="0",
+            ),
+        ]
+    )
+    session.add(stratum)
+    session.flush()
+    return stratum
+
+
 def load_national_geography_ctc_targets(
     session: Session, national_filer_stratum_id: int, geography_year: int
 ) -> None:
     """Create national aggregate CTC targets from the IRS geography file."""
-    for variable in ("refundable_ctc", "non_refundable_ctc"):
+    for variable in CTC_GEOGRAPHY_TARGET_VARIABLES:
         target = _get_national_geography_soi_target_from_year(variable, geography_year)
         stratum = _get_or_create_national_domain_stratum(
             session,
@@ -502,6 +616,47 @@ def load_national_geography_ctc_targets(
             source="IRS SOI",
             notes=notes,
         )
+
+
+def load_national_geography_ctc_agi_targets(
+    session: Session,
+    national_filer_stratum_id: int,
+    geography_year: int,
+) -> None:
+    """Create national AGI-split CTC targets from the IRS geography file."""
+    for variable in CTC_GEOGRAPHY_TARGET_VARIABLES:
+        for target in _get_national_geography_soi_agi_targets_from_year(
+            variable, geography_year
+        ):
+            stratum = _get_or_create_national_agi_domain_stratum(
+                session,
+                national_filer_stratum_id,
+                variable,
+                target["agi_lower_bound"],
+                target["agi_upper_bound"],
+            )
+            notes = (
+                f"IRS geography-file national AGI target "
+                f"(source year {target['source_year']}, agi_stub {target['agi_stub']})"
+            )
+            _upsert_target(
+                session,
+                stratum_id=stratum.stratum_id,
+                variable="tax_unit_count",
+                period=geography_year,
+                value=target["count"],
+                source="IRS SOI",
+                notes=notes,
+            )
+            _upsert_target(
+                session,
+                stratum_id=stratum.stratum_id,
+                variable=variable,
+                period=geography_year,
+                value=target["amount"],
+                source="IRS SOI",
+                notes=notes,
+            )
 
 
 def load_national_workbook_soi_targets(
@@ -924,6 +1079,7 @@ def load_soi_data(long_dfs, year, national_year: Optional[int] = None):
         filer_strata["district"][district_geoid] = district_filer_stratum.stratum_id
 
     load_national_geography_ctc_targets(session, filer_strata["national"], year)
+    load_national_geography_ctc_agi_targets(session, filer_strata["national"], year)
 
     if national_year is not None:
         load_national_workbook_soi_targets(
@@ -1447,6 +1603,7 @@ def main():
     args, dataset_year = etl_argparser(
         "ETL for IRS SOI calibration targets",
         extra_args_fn=add_lag_arg,
+        allow_year=True,
     )
     lagged_year = dataset_year - args.lag
     geography_year = min(lagged_year, LATEST_PUBLISHED_GEOGRAPHIC_SOI_YEAR)

@@ -84,6 +84,7 @@ database:
 	python policyengine_us_data/db/etl_snap.py --year $(YEAR)
 	python policyengine_us_data/db/etl_state_income_tax.py --year $(YEAR)
 	python policyengine_us_data/db/etl_irs_soi.py --year $(YEAR)
+	python policyengine_us_data/db/etl_aca_agi_state_targets.py --year $(YEAR)
 	python policyengine_us_data/db/etl_pregnancy.py --year $(YEAR)
 	python policyengine_us_data/db/validate_database.py
 
@@ -126,7 +127,7 @@ validate-package:
 	python -m policyengine_us_data.calibration.validate_package
 
 publish-local-area:
-	python policyengine_us_data/calibration/publish_local_area.py --upload
+	python -m policyengine_us_data.calibration.promote_local_h5s --local-dir local_area_build
 
 build-h5s:
 	python -m policyengine_us_data.calibration.publish_local_area \
