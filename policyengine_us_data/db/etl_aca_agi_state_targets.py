@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 ACA_SPENDING_2024 = 9.8e10
 
 
-def _definition_hash(parent_stratum_id: int, constraints: list[StratumConstraint]) -> str:
+def _definition_hash(
+    parent_stratum_id: int, constraints: list[StratumConstraint]
+) -> str:
     constraint_strings = [
         f"{c.constraint_variable}|{c.operation}|{c.value}" for c in constraints
     ]
@@ -112,9 +114,7 @@ def _load_aca_targets(session: Session, year: int, geo_strata: dict) -> None:
 
     # Monthly to yearly and normalize to national target to match loss.py.
     data["spending"] = data["spending"] * 12
-    data["spending"] = data["spending"] * (
-        ACA_SPENDING_2024 / data["spending"].sum()
-    )
+    data["spending"] = data["spending"] * (ACA_SPENDING_2024 / data["spending"].sum())
 
     for _, row in data.iterrows():
         state = str(row["state"]).strip()
@@ -190,9 +190,7 @@ def _load_aca_targets(session: Session, year: int, geo_strata: dict) -> None:
 
 
 def _load_agi_state_targets(session: Session, year: int, geo_strata: dict) -> None:
-    soi_targets = pd.read_csv(
-        STORAGE_FOLDER / "calibration_targets" / "agi_state.csv"
-    )
+    soi_targets = pd.read_csv(STORAGE_FOLDER / "calibration_targets" / "agi_state.csv")
 
     for _, row in soi_targets.iterrows():
         state = str(row["GEO_NAME"]).strip()
@@ -213,15 +211,11 @@ def _load_agi_state_targets(session: Session, year: int, geo_strata: dict) -> No
         if is_count:
             target_variable = "tax_unit_count"
             note = (
-                f"State FIPS {state_fips} AGI tax-unit count "
-                f"({lower} <= AGI < {upper})"
+                f"State FIPS {state_fips} AGI tax-unit count ({lower} <= AGI < {upper})"
             )
         else:
             target_variable = "adjusted_gross_income"
-            note = (
-                f"State FIPS {state_fips} AGI total "
-                f"({lower} <= AGI < {upper})"
-            )
+            note = f"State FIPS {state_fips} AGI total ({lower} <= AGI < {upper})"
 
         constraints = [
             StratumConstraint(
