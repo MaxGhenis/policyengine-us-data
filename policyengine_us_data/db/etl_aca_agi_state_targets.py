@@ -210,8 +210,6 @@ def _load_agi_state_targets(session: Session, year: int, geo_strata: dict) -> No
         lower = float(row["AGI_LOWER_BOUND"])
         upper = float(row["AGI_UPPER_BOUND"])
         is_count = bool(row["IS_COUNT"])
-        variable = str(row["VARIABLE"]).strip()
-
         if is_count:
             target_variable = "tax_unit_count"
             note = (

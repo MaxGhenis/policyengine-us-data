@@ -89,7 +89,7 @@ def get_simple_stratum_by_ucgid(session: Session, ucgid: str) -> Optional[Stratu
 
 def get_root_strata(session: Session) -> List[Stratum]:
     """Finds all strata that do not have a parent"""
-    statement = select(Stratum).where(Stratum.parent_stratum_id == None)
+    statement = select(Stratum).where(Stratum.parent_stratum_id.is_(None))
     return session.exec(statement).all()
 
 
