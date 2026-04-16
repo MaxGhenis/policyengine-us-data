@@ -1,0 +1,4 @@
+- bump: patch
+  changes:
+    fixed:
+    - EITC calibration 2-kid bucket used `>=2` against an exclusive IRS target, double-counting with the 3+ bucket and causing a 27% EITC aggregate undercount since October 2024. (#766)

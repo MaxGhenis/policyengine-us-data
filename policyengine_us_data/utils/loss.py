@@ -282,7 +282,14 @@ def build_loss_matrix(dataset: type, time_period):
         )
         eitc_eligible_children = sim.calculate("eitc_child_count").values
         eitc = sim.calculate("eitc").values
-        if row["count_children"] < 2:
+        # IRS Pub 1304 Table 2.5 reports EITC returns by exclusive
+        # qualifying-child categories: 0, 1, 2, and "3 or more". Use `==`
+        # for 0/1/2 and `>=` only for row 3 (which represents 3+ since
+        # EITC caps qualifying children at 3). Previously `<2` used
+        # `==` and `>=2` used `>=`, which double-counted the 2-kid bucket
+        # with 3+ kids and left the calibrator no pressure on exact-2-kid
+        # recipients. See #766.
+        if row["count_children"] < 3:
             meets_child_criteria = (
                 eitc_eligible_children == row["count_children"]
             )
