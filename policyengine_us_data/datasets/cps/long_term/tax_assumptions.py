@@ -5,11 +5,11 @@ from typing import Any
 
 
 TRUSTEES_CORE_THRESHOLD_ASSUMPTION = {
-    "name": "trustees-core-thresholds-v1",
+    "name": "trustees-2025-core-thresholds-v1",
     "description": (
         "Best-public Trustees tax-side approximation: keep Social Security "
         "benefit-tax thresholds fixed, but wage-index core ordinary federal "
-        "tax thresholds after 2034."
+        "tax thresholds after 2034 using the active NAWI path."
     ),
     "source": "SSA 2025 Trustees Report V.C.7",
     "start_year": 2035,
@@ -20,7 +20,18 @@ TRUSTEES_CORE_THRESHOLD_ASSUMPTION = {
         "capital_gains_thresholds",
         "amt_thresholds",
     ],
+    "not_default_current_law": True,
 }
+
+try:
+    from policyengine_us.reforms.ssa.trustees_core_thresholds import (
+        TRUSTEES_CORE_THRESHOLD_ASSUMPTION as _PE_TRUSTEES_CORE_THRESHOLD_ASSUMPTION,
+        create_trustees_core_thresholds_reform as _pe_create_trustees_core_thresholds_reform,
+    )
+except ImportError:
+    _pe_create_trustees_core_thresholds_reform = None
+else:
+    TRUSTEES_CORE_THRESHOLD_ASSUMPTION = dict(_PE_TRUSTEES_CORE_THRESHOLD_ASSUMPTION)
 
 
 def round_amount(amount: float, rounding: dict | None) -> float:
@@ -44,6 +55,18 @@ def _uprating_parameter_name(parameter) -> str | None:
     if isinstance(uprating, dict):
         return uprating.get("parameter")
     return uprating
+
+
+def _get_parameter_by_name(parameters, name: str):
+    current = parameters
+    for part in name.split("."):
+        current = getattr(current, part)
+    return current
+
+
+def _nawi_growth_for_tax_year(parameters, year: int) -> float:
+    nawi = parameters.gov.ssa.nawi
+    return float(nawi(f"{year - 1}-01-01")) / float(nawi(f"{year - 2}-01-01"))
 
 
 def iter_updatable_parameters(
@@ -71,24 +94,46 @@ def iter_updatable_parameters(
 def apply_wage_growth_to_parameter(
     parameter,
     *,
-    nawi,
+    parameters,
     start_year: int,
     end_year: int,
+    projection_base_year: int = 2026,
 ) -> None:
     metadata = getattr(parameter, "metadata", {})
     uprating = metadata.get("uprating")
     rounding = uprating.get("rounding") if isinstance(uprating, dict) else None
+    uprating_name = _uprating_parameter_name(parameter)
+    if uprating_name is None:
+        return
+
+    # Validate that the referenced default uprating parameter exists.
+    _get_parameter_by_name(parameters, uprating_name)
+    values_by_year = {}
+
+    for year in range(projection_base_year + 1, start_year):
+        values_by_year[year] = float(parameter(f"{year}-01-01"))
 
     for year in range(start_year, end_year + 1):
-        previous_value = float(parameter(f"{year - 1}-01-01"))
-        wage_growth = float(nawi(f"{year - 1}-01-01")) / float(
-            nawi(f"{year - 2}-01-01")
-        )
+        if year - 1 in values_by_year:
+            previous_value = values_by_year[year - 1]
+        else:
+            previous_value = float(parameter(f"{year - 1}-01-01"))
+        wage_growth = _nawi_growth_for_tax_year(parameters, year)
         updated_value = round_amount(previous_value * wage_growth, rounding)
+        values_by_year[year] = updated_value
+
+    for year, value in values_by_year.items():
         parameter.update(
             period=f"year:{year}-01-01:1",
-            value=updated_value,
+            value=value,
         )
+
+
+def _parameters_have_long_run_projection(parameters, end_year: int) -> bool:
+    parameter = parameters.gov.irs.income.bracket.thresholds.children["1"].SINGLE
+    return any(
+        value.instant_str == f"{end_year}-01-01" for value in parameter.values_list
+    )
 
 
 def create_wage_indexed_core_thresholds_reform(
@@ -96,10 +141,18 @@ def create_wage_indexed_core_thresholds_reform(
     start_year: int = 2035,
     end_year: int = 2100,
 ):
+    if _pe_create_trustees_core_thresholds_reform is not None:
+        return _pe_create_trustees_core_thresholds_reform(
+            start_year=start_year,
+            end_year=end_year,
+        )
+
     from policyengine_us.model_api import Reform
 
     def modify_parameters(parameters):
-        nawi = parameters.gov.ssa.nawi
+        if not _parameters_have_long_run_projection(parameters, end_year):
+            return parameters
+
         roots = [
             parameters.gov.irs.income.bracket.thresholds,
             parameters.gov.irs.deductions.standard.amount,
@@ -119,7 +172,7 @@ def create_wage_indexed_core_thresholds_reform(
                 seen.add(parameter.name)
                 apply_wage_growth_to_parameter(
                     parameter,
-                    nawi=nawi,
+                    parameters=parameters,
                     start_year=start_year,
                     end_year=end_year,
                 )
@@ -140,7 +193,9 @@ def create_wage_indexed_full_irs_uprating_reform(
     from policyengine_us.model_api import Reform
 
     def modify_parameters(parameters):
-        nawi = parameters.gov.ssa.nawi
+        if not _parameters_have_long_run_projection(parameters, end_year):
+            return parameters
+
         seen = set()
         for parameter in iter_updatable_parameters(
             parameters.gov.irs,
@@ -151,7 +206,7 @@ def create_wage_indexed_full_irs_uprating_reform(
             seen.add(parameter.name)
             apply_wage_growth_to_parameter(
                 parameter,
-                nawi=nawi,
+                parameters=parameters,
                 start_year=start_year,
                 end_year=end_year,
             )

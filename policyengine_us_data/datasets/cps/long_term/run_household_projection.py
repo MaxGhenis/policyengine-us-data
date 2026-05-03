@@ -12,7 +12,7 @@ Usage:
     END_YEAR: Optional ending year (default: 2035)
     --profile: Named calibration contract (recommended)
     --target-source: Named long-term target source package
-    --tax-assumption: Long-run federal tax assumption (`trustees-core-thresholds-v1` by default)
+    --tax-assumption: Long-run federal tax assumption (`trustees-2025-core-thresholds-v1` by default)
     --output-dir: Output directory for generated H5 files and metadata
     --allow-validation-failures: Record validation issues in metadata and continue instead of aborting the run
     --support-augmentation-profile: Experimental late-year support expansion profile

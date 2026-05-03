@@ -40,6 +40,7 @@ from policyengine_us_data.datasets.cps.long_term.ssa_data import (
     describe_long_term_target_source,
     load_oasdi_tob_projections,
     load_taxable_payroll_projections,
+    validate_long_term_target_source,
 )
 from policyengine_us_data.datasets.cps.long_term.support_augmentation import (
     AgeShiftCloneRule,
@@ -50,6 +51,10 @@ from policyengine_us_data.datasets.cps.long_term.support_augmentation import (
     augment_input_dataframe,
     household_support_summary,
     select_donor_households,
+)
+from policyengine_us_data.datasets.cps.long_term.tax_assumptions import (
+    TRUSTEES_CORE_THRESHOLD_ASSUMPTION,
+    create_wage_indexed_core_thresholds_reform,
 )
 from policyengine_us_data.datasets.cps.long_term.prototype_synthetic_2100_support import (
     SyntheticCandidate,
@@ -1004,6 +1009,47 @@ def test_long_term_target_sources_are_available_and_distinct():
     assert oact_oasdi_2026 < trustees_oasdi_2026
 
 
+def test_post_obbba_target_source_carries_reproducibility_contract():
+    source = describe_long_term_target_source("oact_2025_08_05_provisional")
+    assert source["scenario_id"] == "crfb_post_obbba_tob_75y"
+    assert source["baseline_kind"] == "calibration_target"
+    assert source["not_law"] is True
+    assert source["law_mode"] == "trustees-2025-core-thresholds-v1"
+    assert source["artifact_contract"] == {
+        "must_consume_baseline_sha256": source["sha256"],
+        "must_expose_scenario_id": "crfb_post_obbba_tob_75y",
+        "reject_raw_current_law_substitution": True,
+    }
+
+    validation = validate_long_term_target_source("oact_2025_08_05_provisional")
+    assert validation["sha256"] == source["sha256"]
+    assert validation["rows"] == 76
+    assert validation["years"] == [2025, 2100]
+
+
+def test_trustees_core_threshold_assumption_preserves_pre_2035_baseline():
+    from policyengine_us import CountryTaxBenefitSystem
+
+    baseline = CountryTaxBenefitSystem().parameters
+    reformed = CountryTaxBenefitSystem(
+        reform=(create_wage_indexed_core_thresholds_reform(),)
+    ).parameters
+
+    baseline_threshold = baseline.gov.irs.income.bracket.thresholds.children["1"].SINGLE
+    reformed_threshold = reformed.gov.irs.income.bracket.thresholds.children["1"].SINGLE
+    ss_threshold = (
+        baseline.gov.irs.social_security.taxability.threshold.base.main.SINGLE
+    )
+    reformed_ss_threshold = (
+        reformed.gov.irs.social_security.taxability.threshold.base.main.SINGLE
+    )
+
+    assert TRUSTEES_CORE_THRESHOLD_ASSUMPTION["not_default_current_law"] is True
+    assert reformed_threshold("2034-01-01") == baseline_threshold("2034-01-01")
+    assert reformed_threshold("2035-01-01") != baseline_threshold("2035-01-01")
+    assert reformed_ss_threshold("2100-01-01") == ss_threshold("2100-01-01")
+
+
 def test_normalize_metadata_backfills_validation_passed():
     metadata = normalize_metadata(
         {
@@ -1194,7 +1240,7 @@ def test_manifest_persists_tax_assumption_metadata(tmp_path):
         "validation_issues": [],
     }
     tax_assumption = {
-        "name": "trustees-core-thresholds-v1",
+        "name": "trustees-2025-core-thresholds-v1",
         "start_year": 2035,
         "end_year": 2100,
     }
@@ -1222,7 +1268,7 @@ def test_manifest_persists_tax_assumption_metadata(tmp_path):
 
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert metadata["tax_assumption"]["name"] == "trustees-core-thresholds-v1"
+    assert metadata["tax_assumption"]["name"] == "trustees-2025-core-thresholds-v1"
     assert manifest["tax_assumption"]["end_year"] == 2100
 
 
@@ -1322,7 +1368,7 @@ def test_parallel_projection_merge_outputs_rebuilds_manifest(tmp_path):
         "source_type": "oact_note",
     }
     tax_assumption = {
-        "name": "trustees-core-thresholds-v1",
+        "name": "trustees-2025-core-thresholds-v1",
         "start_year": 2035,
         "end_year": 2100,
     }
@@ -1353,7 +1399,7 @@ def test_parallel_projection_merge_outputs_rebuilds_manifest(tmp_path):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["years"] == [2045, 2049]
     assert manifest["target_source"]["name"] == "oact_2025_08_05_provisional"
-    assert manifest["tax_assumption"]["name"] == "trustees-core-thresholds-v1"
+    assert manifest["tax_assumption"]["name"] == "trustees-2025-core-thresholds-v1"
     assert (tmp_path / "2045.h5").exists()
     assert (tmp_path / "2049.h5.metadata.json").exists()
     assert not (tmp_path / ".parallel_tmp").exists()
@@ -1382,7 +1428,7 @@ def test_parallel_projection_merge_outputs_rejects_mismatched_contract(tmp_path)
         year=2062,
         profile=profile,
         audit=audit,
-        tax_assumption={"name": "trustees-core-thresholds-v1"},
+        tax_assumption={"name": "trustees-2025-core-thresholds-v1"},
     )
     _write_parallel_temp_year(
         root=tmp_path,
