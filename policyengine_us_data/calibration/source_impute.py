@@ -70,13 +70,24 @@ SIPP_TIPS_PREDICTORS = [
     "count_under_6",
 ]
 
+# Use CPS/SIPP-comparable financial and demographic predictors for assets.
+# SSI participation and SSI benefit amounts are intentionally excluded to
+# avoid circularity when modeling SSI eligibility reforms. Disability is also
+# excluded pending a validated CPS/SIPP concept crosswalk.
 SIPP_ASSETS_PREDICTORS = [
     "employment_income",
+    "social_security",
+    "retirement_income",
+    "non_ssi_income",
     "age",
     "is_female",
     "is_married",
     "count_under_18",
+    "count_under_6",
+    "household_size",
 ]
+
+SIPP_ASSET_JOB_EARNINGS_COLUMNS = [f"TJB{i}_MSUM" for i in range(1, 8)]
 
 SCF_PREDICTORS = [
     "age",
@@ -193,6 +204,116 @@ def _build_cps_receiver(
             df[var] = data[var][time_period].astype(np.float32)
 
     return df
+
+
+def _add_sipp_asset_predictors(df: pd.DataFrame) -> pd.DataFrame:
+    """Add CPS-comparable SIPP predictors for liquid asset imputation."""
+    job_cols = [col for col in SIPP_ASSET_JOB_EARNINGS_COLUMNS if col in df]
+    df["employment_income"] = df[job_cols].fillna(0).sum(axis=1) * 12
+    df["social_security"] = df["TSSSAMT"].fillna(0) * 12
+    df["retirement_income"] = df["TRETINCAMT"].fillna(0) * 12
+    df["non_ssi_income"] = (
+        df[["employment_income", "social_security", "retirement_income"]]
+        .fillna(0)
+        .sum(axis=1)
+    )
+
+    df["age"] = df.TAGE
+    df["is_female"] = df.ESEX == 2
+    df["is_married"] = df.EMS == 1
+    df["household_weight"] = df.WPFINWGT
+    df["is_under_18"] = df.TAGE < 18
+    df["is_under_6"] = df.TAGE < 6
+
+    household_groups = df.groupby("SSUID")
+    df["count_under_18"] = (
+        household_groups["is_under_18"].sum().loc[df.SSUID.values].values
+    )
+    df["count_under_6"] = (
+        household_groups["is_under_6"].sum().loc[df.SSUID.values].values
+    )
+    df["household_size"] = (
+        household_groups["PNUM"].count().loc[df.SSUID.values].values
+    )
+    return df
+
+
+def _add_cps_asset_predictors(
+    cps_asset_df: pd.DataFrame,
+    cps_tip_df: pd.DataFrame,
+    data: Dict[str, Dict[int, np.ndarray]],
+    time_period: int,
+) -> pd.DataFrame:
+    """Add SIPP asset model predictors to the CPS receiver frame."""
+    for col in [
+        "employment_income",
+        "social_security",
+        "pension_income",
+        "retirement_distributions",
+    ]:
+        if col not in cps_asset_df:
+            cps_asset_df[col] = 0.0
+
+    cps_asset_df["retirement_income"] = (
+        cps_asset_df[["pension_income", "retirement_distributions"]]
+        .fillna(0)
+        .sum(axis=1)
+    )
+    cps_asset_df["non_ssi_income"] = (
+        cps_asset_df[
+            ["employment_income", "social_security", "retirement_income"]
+        ]
+        .fillna(0)
+        .sum(axis=1)
+    )
+
+    if "is_male" in cps_asset_df.columns:
+        cps_asset_df["is_female"] = (
+            ~cps_asset_df["is_male"].astype(bool)
+        ).astype(np.float32)
+    else:
+        cps_asset_df["is_female"] = 0.0
+
+    cps_asset_df["is_married"] = _person_is_married(
+        data, time_period, len(cps_asset_df)
+    )
+
+    cps_asset_df["count_under_18"] = (
+        cps_tip_df["count_under_18"]
+        if "count_under_18" in cps_tip_df.columns
+        else 0.0
+    )
+    cps_asset_df["count_under_6"] = (
+        cps_tip_df["count_under_6"]
+        if "count_under_6" in cps_tip_df.columns
+        else 0.0
+    )
+
+    hh_ids_person = data.get("person_household_id", {}).get(time_period)
+    if hh_ids_person is not None:
+        counts = pd.Series(hh_ids_person).value_counts()
+        cps_asset_df["household_size"] = counts.loc[hh_ids_person].values
+    else:
+        cps_asset_df["household_size"] = 1.0
+
+    return cps_asset_df
+
+
+def _person_is_married(
+    data: Dict[str, Dict[int, np.ndarray]],
+    time_period: int,
+    n_persons: int,
+) -> np.ndarray:
+    """Return a CPS person-level marital predictor for imputation."""
+    if "is_married" in data:
+        return data["is_married"][time_period].astype(np.float32)
+
+    marital_unit_ids = data.get("person_marital_unit_id", {}).get(time_period)
+    if marital_unit_ids is None:
+        return np.zeros(n_persons, dtype=np.float32)
+
+    counts = pd.Series(marital_unit_ids).value_counts()
+    return (counts.loc[marital_unit_ids].values > 1).astype(np.float32)
 
 
 def _get_variable_entity(variable_name: str) -> str:
@@ -454,11 +575,12 @@ def _impute_sipp(
             "TAGE",
             "ESEX",
             "EMS",
-            "TPTOTINC",
+            "TSSSAMT",
+            "TRETINCAMT",
             "TVAL_BANK",
             "TVAL_STMF",
             "TVAL_BOND",
-        ]
+        ] + SIPP_ASSET_JOB_EARNINGS_COLUMNS
         asset_df = pd.read_csv(
             STORAGE_FOLDER / "pu2023.csv",
             delimiter="|",
@@ -469,30 +591,14 @@ def _impute_sipp(
         asset_df["bank_account_assets"] = asset_df["TVAL_BANK"].fillna(0)
         asset_df["stock_assets"] = asset_df["TVAL_STMF"].fillna(0)
         asset_df["bond_assets"] = asset_df["TVAL_BOND"].fillna(0)
-        asset_df["age"] = asset_df.TAGE
-        asset_df["is_female"] = asset_df.ESEX == 2
-        asset_df["is_married"] = asset_df.EMS == 1
-        asset_df["employment_income"] = asset_df.TPTOTINC * 12
-        asset_df["household_weight"] = asset_df.WPFINWGT
-        asset_df["is_under_18"] = asset_df.TAGE < 18
-        asset_df["count_under_18"] = (
-            asset_df.groupby("SSUID")["is_under_18"]
-            .sum()
-            .loc[asset_df.SSUID.values]
-            .values
-        )
+        asset_df = _add_sipp_asset_predictors(asset_df)
 
         asset_train_cols = [
-            "employment_income",
             "bank_account_assets",
             "stock_assets",
             "bond_assets",
-            "age",
-            "is_female",
-            "is_married",
-            "count_under_18",
             "household_weight",
-        ]
+        ] + SIPP_ASSETS_PREDICTORS
         asset_train = asset_df[asset_train_cols].dropna()
         asset_train = asset_train.loc[
             rng.choice(
@@ -510,24 +616,17 @@ def _impute_sipp(
             data,
             time_period,
             dataset_path,
-            ["employment_income", "age", "is_male"],
+            [
+                "employment_income",
+                "social_security",
+                "pension_income",
+                "retirement_distributions",
+                "age",
+                "is_male",
+            ],
         )
-        if "is_male" in cps_asset_df.columns:
-            cps_asset_df["is_female"] = (
-                ~cps_asset_df["is_male"].astype(bool)
-            ).astype(np.float32)
-        else:
-            cps_asset_df["is_female"] = 0.0
-        if "is_married" in data:
-            cps_asset_df["is_married"] = data["is_married"][
-                time_period
-            ].astype(np.float32)
-        else:
-            cps_asset_df["is_married"] = 0.0
-        cps_asset_df["count_under_18"] = (
-            cps_tip_df["count_under_18"]
-            if "count_under_18" in cps_tip_df.columns
-            else 0.0
+        cps_asset_df = _add_cps_asset_predictors(
+            cps_asset_df, cps_tip_df, data, time_period
         )
 
         asset_vars = [

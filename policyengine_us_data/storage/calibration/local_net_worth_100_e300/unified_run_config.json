@@ -1,0 +1,31 @@
+{
+  "dataset": "/Users/maxghenis/PolicyEngine/policyengine-us-data/policyengine_us_data/storage/source_imputed_stratified_extended_cps_2024.h5",
+  "db_path": "/Users/maxghenis/PolicyEngine/policyengine-us-data/policyengine_us_data/storage/calibration/policy_data.db",
+  "skip_source_impute": true,
+  "n_clones": 430,
+  "lambda_l0": 1e-08,
+  "beta": 0.35,
+  "lambda_l2": 1e-12,
+  "learning_rate": 0.15,
+  "epochs": 300,
+  "device": "cpu",
+  "seed": 42,
+  "domain_variables": null,
+  "hierarchical_domains": null,
+  "target_config": "policyengine_us_data/calibration/target_config.yaml",
+  "n_targets": 14110,
+  "n_records": 2999900,
+  "weight_format": "clone_level",
+  "weight_sum": 132811888.0,
+  "weight_nonzero": 2999873,
+  "mean_error_pct": 2.8196312913721413,
+  "elapsed_seconds": 414.2,
+  "artifacts": {
+    "calibration_weights.npy": "sha256:94a8baeaca377edb4e7323b1702c23f7563d9ecf2fa6f1327426c44a832876ad",
+    "geography.npz": "sha256:42d8d03a79dd25ac3566b6e7438a998635463bd107e65392c82b0d763cbb94f3"
+  },
+  "git_commit": "d0d35c94e980d68b9c1b818eca763f399640403f",
+  "git_branch": "codex/forbes-backbone-phase1",
+  "git_dirty": true,
+  "package_version": "1.73.0"
+}

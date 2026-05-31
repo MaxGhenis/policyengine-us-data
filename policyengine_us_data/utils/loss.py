@@ -1,13 +1,14 @@
-import pandas as pd
-import numpy as np
 import logging
 
-from policyengine_us_data.storage import STORAGE_FOLDER, CALIBRATION_FOLDER
+import numpy as np
+import pandas as pd
+from policyengine_core.reforms import Reform
+
+from policyengine_us_data.storage import CALIBRATION_FOLDER
 from policyengine_us_data.storage.calibration_targets.pull_soi_targets import (
     STATE_ABBR_TO_FIPS,
 )
-from policyengine_core.reforms import Reform
-from policyengine_us_data.utils.soi import pe_to_soi, get_soi
+from policyengine_us_data.utils.soi import get_soi, pe_to_soi
 
 # National calibration targets consumed by build_loss_matrix().
 # These values are specific to 2024 — they should NOT be applied to
@@ -63,6 +64,13 @@ HARD_CODED_TOTALS = {
     "roth_ira_contributions": 39e9,
 }
 
+SSI_RECIPIENT_TARGETS_2024 = {
+    "all": 7_289_843,
+    "under_18": 1_001_922,
+    "18_64": 3_905_779,
+    "65_plus": 2_382_142,
+}
+
 
 def fmt(x):
     if x == -np.inf:
@@ -76,6 +84,36 @@ def fmt(x):
     if x < 1e9:
         return f"{x/1e6:.0f}m"
     return f"{x/1e9:.1f}bn"
+
+
+def _simulation_supports_variable(sim, variable_name: str) -> bool:
+    return variable_name in sim.tax_benefit_system.variables
+
+
+def _ssi_age_masks(age: np.ndarray) -> dict[str, np.ndarray]:
+    return {
+        "all": np.ones_like(age, dtype=bool),
+        "under_18": age < 18,
+        "18_64": (age >= 18) & (age < 65),
+        "65_plus": age >= 65,
+    }
+
+
+def _add_ssi_recipient_targets(loss_matrix, targets_array, sim):
+    """Add legacy loss-matrix targets for SSI recipient counts."""
+    if not _simulation_supports_variable(sim, "ssi"):
+        logging.warning("Skipping SSI recipient calibration targets")
+        return
+
+    age = sim.calculate("age", map_to="person").values
+    ssi_recipient = sim.calculate("ssi", map_to="person").values > 0
+
+    for age_group, age_mask in _ssi_age_masks(age).items():
+        label = f"nation/ssa/ssi_recipients/{age_group}"
+        loss_matrix[label] = sim.map_result(
+            ssi_recipient & age_mask, "person", "household"
+        )
+        targets_array.append(SSI_RECIPIENT_TARGETS_2024[age_group])
 
 
 def build_loss_matrix(dataset: type, time_period):
@@ -253,6 +291,8 @@ def build_loss_matrix(dataset: type, time_period):
             ).calibration.gov.cbo._children[param_name]
         )
 
+    _add_ssi_recipient_targets(loss_matrix, targets_array, sim)
+
     # 1. Medicaid Spending
     label = "nation/hhs/medicaid_spending"
     loss_matrix[label] = sim.calculate("medicaid", map_to="household").values
@@ -376,6 +416,12 @@ def build_loss_matrix(dataset: type, time_period):
 
     # Hard-coded totals
     for variable_name, target in HARD_CODED_TOTALS.items():
+        if not _simulation_supports_variable(sim, variable_name):
+            logging.warning(
+                "Skipping unsupported hard-coded calibration target %s",
+                variable_name,
+            )
+            continue
         label = f"nation/census/{variable_name}"
         loss_matrix[label] = sim.calculate(
             variable_name, map_to="household"
@@ -401,15 +447,21 @@ def build_loss_matrix(dataset: type, time_period):
 
     healthcare = pd.read_csv(CALIBRATION_FOLDER / "healthcare_spending.csv")
 
+    healthcare_expense_types = [
+        "health_insurance_premiums_without_medicare_part_b",
+        "over_the_counter_health_expenses",
+        "other_medical_expenses",
+        "medicare_part_b_premiums",
+    ]
+    healthcare_expense_types = [
+        variable_name
+        for variable_name in healthcare_expense_types
+        if _simulation_supports_variable(sim, variable_name)
+    ]
     for _, row in healthcare.iterrows():
         age_lower_bound = int(row["age_10_year_lower_bound"])
         in_age_range = (age >= age_lower_bound) * (age < age_lower_bound + 10)
-        for expense_type in [
-            "health_insurance_premiums_without_medicare_part_b",
-            "over_the_counter_health_expenses",
-            "other_medical_expenses",
-            "medicare_part_b_premiums",
-        ]:
+        for expense_type in healthcare_expense_types:
             label = f"nation/census/{expense_type}/age_{age_lower_bound}_to_{age_lower_bound+9}"
             value = sim.calculate(expense_type).values
             loss_matrix[label] = sim.map_result(
@@ -878,10 +930,8 @@ def _add_snap_metric_columns(
     """
     snap_targets = pd.read_csv(CALIBRATION_FOLDER / "snap_state.csv")
 
-    snap_cost = sim.calculate("snap_reported", map_to="household").values
-    snap_hhs = (
-        sim.calculate("snap_reported", map_to="household").values > 0
-    ).astype(int)
+    snap_cost = sim.calculate("snap", map_to="household").values
+    snap_hhs = (snap_cost > 0).astype(int)
 
     state = sim.calculate("state_code", map_to="person").values
     state = sim.map_result(

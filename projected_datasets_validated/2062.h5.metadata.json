@@ -1,0 +1,106 @@
+{
+  "base_dataset_path": "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5",
+  "calibration_audit": {
+    "age_max_pct_error": 7.375976356631627e-06,
+    "approximate_solution_error_pct": null,
+    "approximate_solution_used": false,
+    "approximation_method": null,
+    "baseline_weight_sum": 145073788.06391805,
+    "calibrated_weight_sum": 177854569.8820876,
+    "calibration_quality": "exact",
+    "constraints": {
+      "hi_tob": {
+        "achieved": 394399014453.9938,
+        "error": 14453.993774414062,
+        "pct_error": 3.6648150158631393e-06,
+        "target": 394399000000.0
+      },
+      "oasdi_tob": {
+        "achieved": 470947406012.9346,
+        "error": 6012.9345703125,
+        "pct_error": 1.2767741302558418e-06,
+        "target": 470947400000.0
+      },
+      "payroll_total": {
+        "achieved": 44429000095800.44,
+        "error": 95800.4375,
+        "pct_error": 2.1562591438024713e-07,
+        "target": 44429000000000.0
+      },
+      "ss_total": {
+        "achieved": 7950651484186.837,
+        "error": 184186.8369140625,
+        "pct_error": 2.316625770193978e-06,
+        "target": 7950651300000.0
+      }
+    },
+    "fell_back_to_ipf": false,
+    "greg_attempted": false,
+    "greg_error": null,
+    "largest_negative_weight": 0.0,
+    "max_constraint_pct_error": 3.6648150158631393e-06,
+    "method_requested": "entropy",
+    "method_used": "entropy",
+    "negative_weight_count": 0,
+    "negative_weight_pct": 0.0
+  },
+  "contract_version": 1,
+  "profile": {
+    "allow_greg_fallback": false,
+    "approximate_windows": [
+      {
+        "end_year": 2078,
+        "max_age_error_pct": 0.5,
+        "max_constraint_error_pct": 0.5,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2076
+      },
+      {
+        "end_year": 2085,
+        "max_age_error_pct": 5.0,
+        "max_constraint_error_pct": 5.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2079
+      },
+      {
+        "end_year": 2095,
+        "max_age_error_pct": 20.0,
+        "max_constraint_error_pct": 20.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2086
+      },
+      {
+        "end_year": null,
+        "max_age_error_pct": 35.0,
+        "max_constraint_error_pct": 35.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2096
+      }
+    ],
+    "calibration_method": "entropy",
+    "description": "Age, Social Security, taxable payroll, and TOB using positive entropy calibration.",
+    "max_age_error_pct": 0.1,
+    "max_constraint_error_pct": 0.1,
+    "max_negative_weight_pct": 0.0,
+    "name": "ss-payroll-tob",
+    "use_greg": false,
+    "use_h6_reform": false,
+    "use_payroll": true,
+    "use_ss": true,
+    "use_tob": true
+  },
+  "target_source": {
+    "description": "2025 Trustees current-law baseline used by the legacy long-term calibration stack.",
+    "file": "trustees_2025_current_law.csv",
+    "name": "trustees_2025_current_law",
+    "notes": [
+      "Generated from social_security_aux.csv for explicit source selection."
+    ],
+    "source_urls": [
+      "https://www.ssa.gov/oact/tr/2025/lrIndex.html",
+      "https://www.ssa.gov/oact/solvency/provisions/tables/table_run133.html"
+    ],
+    "type": "trustees_current_law"
+  },
+  "year": 2062
+}

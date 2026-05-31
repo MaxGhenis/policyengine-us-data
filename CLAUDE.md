@@ -1,64 +1,38 @@
-# CLAUDE.md - Guidelines for PolicyEngine US Data
+# Claude Instructions
 
-## Build Commands
-- `make install` - Install dependencies and dev environment
-- `make build` - Build the package using Python build
-- `make data` - Generate project datasets
+These instructions apply repository-wide.
 
-## Testing
-- `pytest` - Run all tests
-- `pytest path/to/test_file.py::test_function` - Run a specific test
-- `make test` - Also runs all tests
+## Canonical guidance
 
-## Formatting
-- `make format` - Format all code using Black with 79 char line length
-- `black . -l 79 --check` - Check formatting without changing files
+Repository-wide AI-facing engineering guidance lives in `AGENTS.md`.
+Canonical skills live under `docs/engineering/skills/`.
 
-## Code Style Guidelines
-- **Imports**: Standard libraries first, then third-party, then internal
-- **Type Hints**: Use for all function parameters and return values
-- **Naming**: Classes: PascalCase, Functions/Variables: snake_case, Constants: UPPER_SNAKE_CASE
-- **Documentation**: Google-style docstrings with Args and Returns sections
-- **Error Handling**: Use validation checks with specific error messages
-- **Line Length**: 79 characters max (Black configured in pyproject.toml)
-- **Python Version**: Targeting Python 3.11
+Use those files as the source of truth. This file is a Claude adapter and should
+stay thin; do not duplicate detailed testing, CI, formatting, or architecture
+rules here.
 
-## Git and PR Guidelines
-- **CRITICAL**: NEVER create PRs from personal forks - ALL PRs MUST be created from branches pushed to the upstream PolicyEngine repository
-- CI requires access to secrets that are not available to fork PRs for security reasons
-- Fork PRs will fail on data download steps and cannot be merged
-- Always create branches directly on the upstream repository:
-  ```bash
-  git checkout main
-  git pull upstream main
-  git checkout -b your-branch-name
-  git push -u upstream your-branch-name
-  ```
-- Use descriptive branch names like `fix-issue-123` or `add-feature-name`
-- Always run `make format` before committing
+## Required skill lookup
 
-## CRITICAL RULES FOR ACADEMIC INTEGRITY
+Before opening, replacing, or sharing a PR, read
+`docs/engineering/skills/github-prs.md`.
 
-### NEVER FABRICATE DATA OR RESULTS
-- **NEVER make up numbers, statistics, or results** - This is academic malpractice
-- **NEVER invent performance metrics, error rates, or validation results**
-- **NEVER create fictional poverty rates, income distributions, or demographic statistics**
-- **NEVER fabricate cross-validation results, correlations, or statistical tests**
-- If you don't have actual data, say "Results to be determined" or "Analysis pending"
-- Always use placeholder text like "[TO BE CALCULATED]" for unknown values
-- When writing papers, use generic descriptions without specific numbers unless verified
+When adding, moving, or reviewing tests, read
+`docs/engineering/skills/testing.md` before editing. Then run
+`uv run --no-sync --with pyyaml python scripts/run_quality_guards.py` before
+handing off test-layout changes.
 
-### When Writing Academic Papers
-- Only cite actual results from running code or published sources
-- Use placeholders for any metrics you haven't calculated
-- Clearly mark sections that need empirical validation
-- Never guess or estimate academic results
-- If asked to complete analysis without data, explain what would need to be done
+When reviewing PRs that change pipeline behavior, stage boundaries, generated
+artifacts, or public library functions, read
+`docs/engineering/skills/documentation_review.md`.
 
-### Consequences of Fabrication
-- Fabricating data in academic work can lead to:
-  - Rejection from journals
-  - Blacklisting from future publications
-  - Damage to institutional reputation
-  - Legal consequences in funded research
-  - Career-ending academic misconduct charges
+When diagnosing a deployed Modal pipeline run or a failed publication pipeline,
+read `docs/engineering/skills/pipeline_operations.md`.
+
+## Safety boundaries
+
+Do not fabricate data, validation metrics, academic results, or performance
+claims. If a result has not been computed from code or cited from a published
+source, mark it as pending instead.
+
+Do not upload, promote, or publish data artifacts unless the user explicitly
+asks for that operation.

@@ -51,6 +51,7 @@ def _create_test_db(db_path):
                 "variable TEXT, "
                 "value REAL, "
                 "period INTEGER, "
+                "reform_id INTEGER DEFAULT 0, "
                 "active INTEGER DEFAULT 1)"
             )
         )
@@ -62,7 +63,7 @@ def _create_test_db(db_path):
 
 def _insert_aca_ptc_data(engine):
     with engine.connect() as conn:
-        strata = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        strata = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         for sid in strata:
             conn.execute(
                 text(
@@ -93,6 +94,8 @@ def _insert_aca_ptc_data(engine):
             (14, 8, "aca_ptc", ">", "0"),
             (15, 8, "congressional_district_geoid", "=", "3702"),
             (16, 9, "aca_ptc", ">", "0"),
+            (17, 10, "ssi", ">", "0"),
+            (18, 10, "age", "<", "18"),
         ]
         for cid, sid, var, op, val in constraints:
             conn.execute(
@@ -110,30 +113,33 @@ def _insert_aca_ptc_data(engine):
             )
 
         targets = [
-            (1, 1, "aca_ptc", 10000.0, 2022),
-            (2, 1, "tax_unit_count", 500.0, 2022),
-            (3, 2, "aca_ptc", 6000.0, 2022),
-            (4, 2, "tax_unit_count", 300.0, 2022),
-            (5, 3, "aca_ptc", 4000.0, 2022),
-            (6, 3, "tax_unit_count", 200.0, 2022),
-            (7, 4, "aca_ptc", 2000.0, 2022),
-            (8, 5, "aca_ptc", 2500.0, 2022),
-            (9, 6, "aca_ptc", 1500.0, 2022),
-            (10, 4, "tax_unit_count", 100.0, 2022),
-            (11, 5, "tax_unit_count", 120.0, 2022),
-            (12, 6, "tax_unit_count", 80.0, 2022),
-            (13, 7, "aca_ptc", 2200.0, 2022),
-            (14, 8, "aca_ptc", 1800.0, 2022),
-            (15, 7, "tax_unit_count", 110.0, 2022),
-            (16, 8, "tax_unit_count", 90.0, 2022),
-            (17, 9, "person_count", 19743689.0, 2024),
+            (1, 1, "aca_ptc", 10000.0, 2022, 0, 1),
+            (2, 1, "tax_unit_count", 500.0, 2022, 0, 1),
+            (3, 2, "aca_ptc", 6000.0, 2022, 0, 1),
+            (4, 2, "tax_unit_count", 300.0, 2022, 0, 1),
+            (5, 3, "aca_ptc", 4000.0, 2022, 0, 1),
+            (6, 3, "tax_unit_count", 200.0, 2022, 0, 1),
+            (7, 4, "aca_ptc", 2000.0, 2022, 0, 1),
+            (8, 5, "aca_ptc", 2500.0, 2022, 0, 1),
+            (9, 6, "aca_ptc", 1500.0, 2022, 0, 1),
+            (10, 4, "tax_unit_count", 100.0, 2022, 0, 1),
+            (11, 5, "tax_unit_count", 120.0, 2022, 0, 1),
+            (12, 6, "tax_unit_count", 80.0, 2022, 0, 1),
+            (13, 7, "aca_ptc", 2200.0, 2022, 0, 1),
+            (14, 8, "aca_ptc", 1800.0, 2022, 0, 1),
+            (15, 7, "tax_unit_count", 110.0, 2022, 0, 1),
+            (16, 8, "tax_unit_count", 90.0, 2022, 0, 1),
+            (17, 9, "person_count", 19743689.0, 2024, 0, 1),
+            (18, 1, "salt_deduction", 21_247_000_000.0, 2024, 1, 1),
+            (19, 1, "rent", 1.0, 2024, 0, 0),
+            (20, 10, "person_count", 1001922.0, 2024, 0, 1),
         ]
-        for tid, sid, var, val, period in targets:
+        for tid, sid, var, val, period, reform_id, active in targets:
             conn.execute(
                 text(
                     "INSERT INTO targets "
                     "VALUES (:tid, :sid, :var, :val, "
-                    ":period, 1)"
+                    ":period, :reform_id, :active)"
                 ),
                 {
                     "tid": tid,
@@ -141,6 +147,8 @@ def _insert_aca_ptc_data(engine):
                     "var": var,
                     "val": val,
                     "period": period,
+                    "reform_id": reform_id,
+                    "active": active,
                 },
             )
         conn.commit()
@@ -173,6 +181,15 @@ class TestQueryTargets(unittest.TestCase):
         self.assertIn("geographic_id", df.columns)
         self.assertIn("domain_variable", df.columns)
 
+    def test_domain_variables_filter_matches_multiconstraint_strata(self):
+        b = self._make_builder()
+        df = b._query_targets({"domain_variables": ["ssi"]})
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df.iloc[0]["variable"], "person_count")
+        self.assertEqual(df.iloc[0]["value"], 1001922.0)
+        self.assertIn("age", df.iloc[0]["domain_variable"])
+        self.assertIn("ssi", df.iloc[0]["domain_variable"])
+
     def test_all_geo_levels_returned(self):
         b = self._make_builder()
         df = b._query_targets({"domain_variables": ["aca_ptc"]})
@@ -197,6 +214,25 @@ class TestQueryTargets(unittest.TestCase):
             (df["geo_level"] == "state") & (df["geographic_id"] == "6")
         ]
         self.assertGreater(len(state_ca), 0)
+
+    def test_reform_id_returned(self):
+        b = self._make_builder()
+        df = b._query_targets({"variables": ["salt_deduction"]})
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df.iloc[0]["reform_id"], 1)
+
+    def test_inactive_targets_excluded(self):
+        b = self._make_builder()
+        df = b._query_targets({"variables": ["rent"]})
+        self.assertEqual(len(df), 0)
+
+    def test_reform_target_name_marks_expenditure(self):
+        name = UnifiedMatrixBuilder._make_target_name(
+            "salt_deduction",
+            [],
+            reform_id=1,
+        )
+        self.assertEqual(name, "national/salt_deduction_expenditure")
 
 
 class TestHierarchicalUprating(unittest.TestCase):

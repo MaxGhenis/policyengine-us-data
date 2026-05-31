@@ -14,6 +14,125 @@ from policyengine_us_data.utils.db import (
     etl_argparser,
 )
 
+NEUTRALIZE_VARIABLE_REFORM_ID = 1
+
+SSI_MONTHLY_2024_TABLE_1 = (
+    "https://www.ssa.gov/policy/docs/statcomps/ssi_monthly/2024-12/"
+    "table01.html"
+)
+
+
+def _ssi_constraint(operation=">", value="0"):
+    return {
+        "variable": "ssi",
+        "operation": operation,
+        "value": value,
+    }
+
+
+def _age_constraints(age_group):
+    if age_group == "under_18":
+        return [{"variable": "age", "operation": "<", "value": "18"}]
+    if age_group == "18_64":
+        return [
+            {"variable": "age", "operation": ">=", "value": "18"},
+            {"variable": "age", "operation": "<", "value": "65"},
+        ]
+    if age_group == "65_plus":
+        return [{"variable": "age", "operation": ">=", "value": "65"}]
+    return []
+
+
+def _make_notes(target_data):
+    notes_parts = []
+    if pd.notna(target_data.get("notes")):
+        notes_parts.append(target_data["notes"])
+    notes_parts.append(f"Source: {target_data.get('source', 'Unknown')}")
+    return " | ".join(notes_parts)
+
+
+def _get_reform_id(target_data):
+    reform_id = target_data.get("reform_id", 0)
+    if pd.isna(reform_id):
+        reform_id = 0
+    return int(reform_id)
+
+
+def _ssi_stratified_targets(year: int):
+    """SSA SSI federal payment recipient count targets by age."""
+    source = SSI_MONTHLY_2024_TABLE_1
+    age_labels = {
+        "under_18": "under 18",
+        "18_64": "18-64",
+        "65_plus": "65 or older",
+    }
+    federal_recipients = {
+        "all": 7_289_843,
+        "under_18": 1_001_922,
+        "18_64": 3_905_779,
+        "65_plus": 2_382_142,
+    }
+    targets = [
+        {
+            "variable": "person_count",
+            "value": federal_recipients["all"],
+            "source": source,
+            "notes": "SSI recipients with a federal payment, December 2024",
+            "year": year,
+            "stratum_notes": "National SSI Federal Payment Recipients",
+            "constraints": [_ssi_constraint()],
+        }
+    ]
+
+    for age_group, label in age_labels.items():
+        age_constraints = _age_constraints(age_group)
+        targets.append(
+            {
+                "variable": "person_count",
+                "value": federal_recipients[age_group],
+                "source": source,
+                "notes": (
+                    "SSI recipients with a federal payment, December 2024, "
+                    f"age {label}"
+                ),
+                "year": year,
+                "stratum_notes": (
+                    f"National SSI Federal Payment Recipients - Age {label}"
+                ),
+                "constraints": [_ssi_constraint()] + age_constraints,
+            }
+        )
+    return targets
+
+
+def _get_or_create_child_stratum(
+    session, parent_stratum_id, notes, constraints
+):
+    existing_stratum = (
+        session.query(Stratum)
+        .filter(
+            Stratum.parent_stratum_id == parent_stratum_id,
+            Stratum.notes == notes,
+        )
+        .first()
+    )
+    if existing_stratum:
+        return existing_stratum
+
+    stratum = Stratum(parent_stratum_id=parent_stratum_id, notes=notes)
+    stratum.constraints_rel = [
+        StratumConstraint(
+            constraint_variable=constraint["variable"],
+            operation=constraint["operation"],
+            value=str(constraint["value"]),
+        )
+        for constraint in constraints
+    ]
+    session.add(stratum)
+    session.flush()
+    print(f"Created stratum: {notes}")
+    return stratum
+
 
 def extract_national_targets(dataset: str = DEFAULT_DATASET):
     """
@@ -63,6 +182,7 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
             "source": "Joint Committee on Taxation",
             "notes": "SALT deduction tax expenditure",
             "year": HARDCODED_YEAR,
+            "reform_id": NEUTRALIZE_VARIABLE_REFORM_ID,
         },
         {
             "variable": "medical_expense_deduction",
@@ -70,6 +190,7 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
             "source": "Joint Committee on Taxation",
             "notes": "Medical expense deduction tax expenditure",
             "year": HARDCODED_YEAR,
+            "reform_id": NEUTRALIZE_VARIABLE_REFORM_ID,
         },
         {
             "variable": "charitable_deduction",
@@ -77,6 +198,7 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
             "source": "Joint Committee on Taxation",
             "notes": "Charitable deduction tax expenditure",
             "year": HARDCODED_YEAR,
+            "reform_id": NEUTRALIZE_VARIABLE_REFORM_ID,
         },
         {
             "variable": "interest_deduction",
@@ -84,6 +206,7 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
             "source": "Joint Committee on Taxation",
             "notes": "Mortgage interest deduction tax expenditure",
             "year": HARDCODED_YEAR,
+            "reform_id": NEUTRALIZE_VARIABLE_REFORM_ID,
         },
         {
             "variable": "qualified_business_income_deduction",
@@ -91,6 +214,7 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
             "source": "Joint Committee on Taxation",
             "notes": "QBI deduction tax expenditure",
             "year": HARDCODED_YEAR,
+            "reform_id": NEUTRALIZE_VARIABLE_REFORM_ID,
         },
     ]
 
@@ -312,6 +436,8 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
 
     conditional_count_targets.extend(ssn_none_targets_by_year)
 
+    stratified_targets = _ssi_stratified_targets(HARDCODED_YEAR)
+
     # CBO projection targets - use time_period derived from dataset
     cbo_vars = [
         # Note: income_tax_positive matches CBO's receipts definition
@@ -374,6 +500,7 @@ def extract_national_targets(dataset: str = DEFAULT_DATASET):
         "direct_sum_targets": direct_sum_targets,
         "tax_filer_targets": tax_filer_targets,
         "conditional_count_targets": conditional_count_targets,
+        "stratified_targets": stratified_targets,
         "cbo_targets": cbo_targets,
         "treasury_targets": treasury_targets,
         "time_period": time_period,
@@ -392,10 +519,11 @@ def transform_national_targets(raw_targets):
     Returns
     -------
     tuple
-        (direct_targets_df, tax_filer_df, conditional_targets)
+        (direct_targets_df, tax_filer_df, conditional_targets, stratified_targets)
         - direct_targets_df: DataFrame with direct sum targets
         - tax_filer_df: DataFrame with tax-related targets needing filer constraint
         - conditional_targets: List of conditional count targets
+        - stratified_targets: List of constrained value/count targets
     """
 
     # Process direct sum targets (non-tax items and some CBO items)
@@ -434,12 +562,16 @@ def transform_national_targets(raw_targets):
 
     # Conditional targets stay as list for special processing
     conditional_targets = raw_targets["conditional_count_targets"]
+    stratified_targets = raw_targets.get("stratified_targets", [])
 
-    return direct_df, tax_filer_df, conditional_targets
+    return direct_df, tax_filer_df, conditional_targets, stratified_targets
 
 
 def load_national_targets(
-    direct_targets_df, tax_filer_df, conditional_targets
+    direct_targets_df,
+    tax_filer_df,
+    conditional_targets,
+    stratified_targets=None,
 ):
     """
     Load national targets into the database.
@@ -452,7 +584,10 @@ def load_national_targets(
         DataFrame with tax-related targets needing filer constraint
     conditional_targets : list
         List of conditional count targets requiring strata
+    stratified_targets : list, optional
+        List of constrained count or value targets requiring strata
     """
+    stratified_targets = stratified_targets or []
 
     DATABASE_URL = (
         f"sqlite:///{STORAGE_FOLDER / 'calibration' / 'policy_data.db'}"
@@ -547,6 +682,10 @@ def load_national_targets(
             # Add tax-related targets to filer stratum
             for _, target_data in tax_filer_df.iterrows():
                 target_year = target_data["year"]
+                reform_id = target_data.get("reform_id", 0)
+                if pd.isna(reform_id):
+                    reform_id = 0
+                reform_id = int(reform_id)
                 # Check if target already exists
                 existing_target = (
                     session.query(Target)
@@ -554,6 +693,7 @@ def load_national_targets(
                         Target.stratum_id == national_filer_stratum.stratum_id,
                         Target.variable == target_data["variable"],
                         Target.period == target_year,
+                        Target.reform_id == reform_id,
                     )
                     .first()
                 )
@@ -572,6 +712,7 @@ def load_national_targets(
                     existing_target.value = target_data["value"]
                     existing_target.notes = combined_notes
                     existing_target.source = "PolicyEngine"
+                    existing_target.active = True
                     print(f"Updated filer target: {target_data['variable']}")
                 else:
                     # Create new target
@@ -579,6 +720,7 @@ def load_national_targets(
                         stratum_id=national_filer_stratum.stratum_id,
                         variable=target_data["variable"],
                         period=target_year,
+                        reform_id=reform_id,
                         value=target_data["value"],
                         active=True,
                         source="PolicyEngine",
@@ -586,6 +728,21 @@ def load_national_targets(
                     )
                     session.add(target)
                     print(f"Added filer target: {target_data['variable']}")
+
+                if reform_id != 0:
+                    raw_target = (
+                        session.query(Target)
+                        .filter(
+                            Target.stratum_id
+                            == national_filer_stratum.stratum_id,
+                            Target.variable == target_data["variable"],
+                            Target.period == target_year,
+                            Target.reform_id == 0,
+                        )
+                        .first()
+                    )
+                    if raw_target is not None:
+                        raw_target.active = False
 
         # Process conditional count targets (enrollment counts)
         for cond_target in conditional_targets:
@@ -682,12 +839,63 @@ def load_national_targets(
                     f"Created stratum and target for {constraint_var} enrollment"
                 )
 
+        # Process general stratified targets, such as SSI age targets
+        for stratified_target in stratified_targets:
+            stratum = _get_or_create_child_stratum(
+                session=session,
+                parent_stratum_id=us_stratum.stratum_id,
+                notes=stratified_target["stratum_notes"],
+                constraints=stratified_target["constraints"],
+            )
+            target_year = stratified_target["year"]
+            reform_id = _get_reform_id(stratified_target)
+            existing_target = (
+                session.query(Target)
+                .filter(
+                    Target.stratum_id == stratum.stratum_id,
+                    Target.variable == stratified_target["variable"],
+                    Target.period == target_year,
+                    Target.reform_id == reform_id,
+                )
+                .first()
+            )
+            combined_notes = _make_notes(stratified_target)
+
+            if existing_target:
+                existing_target.value = stratified_target["value"]
+                existing_target.notes = combined_notes
+                existing_target.source = "PolicyEngine"
+                existing_target.active = True
+                print(
+                    "Updated stratified target: "
+                    f"{stratified_target['variable']} - "
+                    f"{stratified_target['stratum_notes']}"
+                )
+            else:
+                target = Target(
+                    stratum_id=stratum.stratum_id,
+                    variable=stratified_target["variable"],
+                    period=target_year,
+                    reform_id=reform_id,
+                    value=stratified_target["value"],
+                    active=True,
+                    source="PolicyEngine",
+                    notes=combined_notes,
+                )
+                session.add(target)
+                print(
+                    "Added stratified target: "
+                    f"{stratified_target['variable']} - "
+                    f"{stratified_target['stratum_notes']}"
+                )
+
         session.commit()
 
         total_targets = (
             len(direct_targets_df)
             + len(tax_filer_df)
             + len(conditional_targets)
+            + len(stratified_targets)
         )
         print(f"\nSuccessfully loaded {total_targets} national targets")
         print(f"  - {len(direct_targets_df)} direct sum targets")
@@ -695,6 +903,7 @@ def load_national_targets(
         print(
             f"  - {len(conditional_targets)} enrollment count targets (as strata)"
         )
+        print(f"  - {len(stratified_targets)} stratified targets")
 
 
 def main():
@@ -709,13 +918,21 @@ def main():
 
     # Transform
     print("Transforming targets...")
-    direct_targets_df, tax_filer_df, conditional_targets = (
-        transform_national_targets(raw_targets)
-    )
+    (
+        direct_targets_df,
+        tax_filer_df,
+        conditional_targets,
+        stratified_targets,
+    ) = transform_national_targets(raw_targets)
 
     # Load
     print("Loading targets into database...")
-    load_national_targets(direct_targets_df, tax_filer_df, conditional_targets)
+    load_national_targets(
+        direct_targets_df,
+        tax_filer_df,
+        conditional_targets,
+        stratified_targets,
+    )
 
     print("\nETL pipeline complete!")
 

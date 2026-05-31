@@ -613,10 +613,6 @@ def add_personal_income_variables(
     # The code for strike benefits is 12.
     cps["strike_benefits"] = (person.OI_OFF == 12) * person.OI_VAL
     cps["child_support_received"] = person.CSP_VAL
-    # Assume all public assistance / welfare dollars (PAW_VAL) are TANF.
-    # They could also include General Assistance.
-    cps["tanf_reported"] = person.PAW_VAL
-    cps["ssi_reported"] = person.SSI_VAL
     # Assume all retirement contributions are traditional 401(k) for now.
     # Procedure for allocating retirement contributions:
     # 1) If they report any self-employment income, allocate entirely to
@@ -778,7 +774,6 @@ def add_spm_variables(self, cps: h5py.File, spm_unit: DataFrame) -> None:
 
     SPM_RENAMES = dict(
         spm_unit_total_income_reported="SPM_TOTVAL",
-        snap_reported="SPM_SNAPSUB",
         spm_unit_capped_housing_subsidy_reported="SPM_CAPHOUSESUB",
         free_school_meals_reported="SPM_SCHLUNCH",
         spm_unit_energy_subsidy_reported="SPM_ENGVAL",
@@ -1779,6 +1774,9 @@ def add_tips(self, cps: h5py.File):
             "person_id",
             "household_id",
             "employment_income",
+            "social_security",
+            "pension_income",
+            "retirement_distributions",
             "age",
             "household_weight",
             "is_female",
@@ -1808,6 +1806,22 @@ def add_tips(self, cps: h5py.File):
         .sum()
         .loc[cps.household_id.values]
         .values
+    )
+    cps["household_size"] = (
+        cps.groupby("household_id")["person_id"]
+        .count()
+        .loc[cps.household_id.values]
+        .values
+    )
+    cps["retirement_income"] = (
+        cps[["pension_income", "retirement_distributions"]]
+        .fillna(0)
+        .sum(axis=1)
+    )
+    cps["non_ssi_income"] = (
+        cps[["employment_income", "social_security", "retirement_income"]]
+        .fillna(0)
+        .sum(axis=1)
     )
     cps = pd.DataFrame(cps)
 
@@ -1840,7 +1854,20 @@ def add_tips(self, cps: h5py.File):
     # is_married is person-level here but policyengine-us defines it at Family
     # level, so we must not save it
     cps = cps.drop(
-        columns=["is_married", "is_under_18", "is_under_6"], errors="ignore"
+        columns=[
+            "is_married",
+            "is_under_18",
+            "is_under_6",
+            "count_under_18",
+            "count_under_6",
+            "household_size",
+            "non_ssi_income",
+            "retirement_income",
+            "retirement_distributions",
+            "social_security",
+            "pension_income",
+        ],
+        errors="ignore",
     )
 
     self.save_dataset(cps)

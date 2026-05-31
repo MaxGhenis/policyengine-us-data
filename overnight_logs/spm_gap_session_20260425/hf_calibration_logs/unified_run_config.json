@@ -1,0 +1,31 @@
+{
+  "dataset": "/root/policyengine-us-data/policyengine_us_data/storage/source_imputed_stratified_extended_cps_2024.h5",
+  "db_path": "/root/policyengine-us-data/policyengine_us_data/storage/calibration/policy_data.db",
+  "skip_source_impute": true,
+  "n_clones": 430,
+  "lambda_l0": 1e-08,
+  "beta": 0.65,
+  "lambda_l2": 1e-08,
+  "learning_rate": 0.15,
+  "epochs": 1500,
+  "device": "cuda",
+  "seed": 42,
+  "domain_variables": null,
+  "hierarchical_domains": null,
+  "target_config": "policyengine_us_data/calibration/target_config.yaml",
+  "n_targets": 14109,
+  "n_records": 5159570,
+  "weight_format": "clone_level",
+  "weight_sum": 111276800.0,
+  "weight_nonzero": 2666585,
+  "mean_error_pct": 4.400533324442472,
+  "elapsed_seconds": 2062.3,
+  "artifacts": {
+    "calibration_weights.npy": "sha256:19183e1ac3a4c6b5360a7efc83808cca495083b05b661188a11185f0e0fc29af",
+    "geography.npz": "sha256:e7dd17213f946f74ffcbf190177b2235ae598acbb420532030652b7e666a3eb3"
+  },
+  "git_commit": "98d1c21b1147711cecfb8a394c3c0867f4bd9e4e",
+  "git_branch": "calibration-pipeline-improvements",
+  "git_dirty": false,
+  "package_version": "1.72.3"
+}

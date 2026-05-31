@@ -1,0 +1,108 @@
+{
+  "base_dataset_path": "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5",
+  "calibration_audit": {
+    "age_max_pct_error": 4.095617145464169,
+    "approximate_solution_error_pct": 4.095617145464152,
+    "approximate_solution_used": true,
+    "approximation_method": "lp_minimax",
+    "baseline_weight_sum": 145073788.06391805,
+    "calibrated_weight_sum": 244345399.85823742,
+    "calibration_quality": "approximate",
+    "constraints": {
+      "hi_tob": {
+        "achieved": 870771516478.387,
+        "error": -37186483521.61304,
+        "pct_error": -4.095617145464112,
+        "target": 907958000000.0
+      },
+      "oasdi_tob": {
+        "achieved": 1122268901353.563,
+        "error": 44155401353.56311,
+        "pct_error": 4.095617145464101,
+        "target": 1078113499999.9999
+      },
+      "payroll_total": {
+        "achieved": 89909399882298.81,
+        "error": -3839600117701.1875,
+        "pct_error": -4.095617145464152,
+        "target": 93749000000000.0
+      },
+      "ss_total": {
+        "achieved": 17038548450670.621,
+        "error": -727634849329.3789,
+        "pct_error": -4.095617145464096,
+        "target": 17766183300000.0
+      }
+    },
+    "entropy_error": "Entropy calibration failed: max constraint error remained 23.459359% after 500 iterations. Nonnegative exact calibration appears infeasible under current support; best achievable max relative constraint error is 4.096%.",
+    "fell_back_to_ipf": false,
+    "greg_attempted": false,
+    "greg_error": null,
+    "largest_negative_weight": 0.0,
+    "lp_fallback_used": true,
+    "max_constraint_pct_error": 4.095617145464152,
+    "method_requested": "entropy",
+    "method_used": "entropy",
+    "negative_weight_count": 0,
+    "negative_weight_pct": 0.0
+  },
+  "contract_version": 1,
+  "profile": {
+    "allow_greg_fallback": false,
+    "approximate_windows": [
+      {
+        "end_year": 2078,
+        "max_age_error_pct": 0.5,
+        "max_constraint_error_pct": 0.5,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2075
+      },
+      {
+        "end_year": 2085,
+        "max_age_error_pct": 5.0,
+        "max_constraint_error_pct": 5.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2079
+      },
+      {
+        "end_year": 2095,
+        "max_age_error_pct": 20.0,
+        "max_constraint_error_pct": 20.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2086
+      },
+      {
+        "end_year": null,
+        "max_age_error_pct": 35.0,
+        "max_constraint_error_pct": 35.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2096
+      }
+    ],
+    "calibration_method": "entropy",
+    "description": "Age, Social Security, taxable payroll, and TOB using positive entropy calibration.",
+    "max_age_error_pct": 0.1,
+    "max_constraint_error_pct": 0.1,
+    "max_negative_weight_pct": 0.0,
+    "name": "ss-payroll-tob",
+    "use_greg": false,
+    "use_h6_reform": false,
+    "use_payroll": true,
+    "use_ss": true,
+    "use_tob": true
+  },
+  "target_source": {
+    "description": "2025 Trustees current-law baseline used by the legacy long-term calibration stack.",
+    "file": "trustees_2025_current_law.csv",
+    "name": "trustees_2025_current_law",
+    "notes": [
+      "Generated from social_security_aux.csv for explicit source selection."
+    ],
+    "source_urls": [
+      "https://www.ssa.gov/oact/tr/2025/lrIndex.html",
+      "https://www.ssa.gov/oact/solvency/provisions/tables/table_run133.html"
+    ],
+    "type": "trustees_current_law"
+  },
+  "year": 2082
+}

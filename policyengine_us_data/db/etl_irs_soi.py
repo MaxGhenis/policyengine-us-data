@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, create_engine
 
 from policyengine_us_data.storage import STORAGE_FOLDER
 from policyengine_us_data.db.create_database_tables import (
@@ -13,10 +13,6 @@ from policyengine_us_data.db.create_database_tables import (
     Target,
 )
 from policyengine_us_data.utils.db import (
-    get_stratum_by_id,
-    get_root_strata,
-    get_stratum_children,
-    get_stratum_parent,
     parse_ucgid,
     get_geographic_strata,
     etl_argparser,
@@ -379,6 +375,40 @@ def transform_soi_data(raw_df):
     return converted
 
 
+def _get_eitc_recipient_constraints(geo_info):
+    constraints = [
+        StratumConstraint(
+            constraint_variable="tax_unit_is_filer",
+            operation="==",
+            value="1",
+        ),
+        StratumConstraint(
+            constraint_variable="eitc",
+            operation=">",
+            value="0",
+        ),
+    ]
+
+    if geo_info["type"] == "state":
+        constraints.append(
+            StratumConstraint(
+                constraint_variable="state_fips",
+                operation="==",
+                value=str(geo_info["state_fips"]),
+            )
+        )
+    elif geo_info["type"] == "district":
+        constraints.append(
+            StratumConstraint(
+                constraint_variable="congressional_district_geoid",
+                operation="==",
+                value=str(geo_info["congressional_district_geoid"]),
+            )
+        )
+
+    return constraints
+
+
 def load_soi_data(long_dfs, year):
     """Load a list of databases into the db, critically dependent on order"""
 
@@ -516,48 +546,17 @@ def load_soi_data(long_dfs, year):
             # Determine parent stratum based on geographic level - use filer strata not geo strata
             if geo_info["type"] == "national":
                 parent_stratum_id = filer_strata["national"]
-                note = f"National EITC received with {n_children} children (filers)"
-                constraints = [
-                    StratumConstraint(
-                        constraint_variable="tax_unit_is_filer",
-                        operation="==",
-                        value="1",
-                    )
-                ]
+                note = f"National EITC received with {n_children} children (recipients)"
             elif geo_info["type"] == "state":
-                parent_stratum_id = filer_strata["state"][
-                    geo_info["state_fips"]
-                ]
-                note = f"State FIPS {geo_info['state_fips']} EITC received with {n_children} children (filers)"
-                constraints = [
-                    StratumConstraint(
-                        constraint_variable="tax_unit_is_filer",
-                        operation="==",
-                        value="1",
-                    ),
-                    StratumConstraint(
-                        constraint_variable="state_fips",
-                        operation="==",
-                        value=str(geo_info["state_fips"]),
-                    ),
-                ]
+                parent_stratum_id = filer_strata["state"][geo_info["state_fips"]]
+                note = f"State FIPS {geo_info['state_fips']} EITC received with {n_children} children (recipients)"
             elif geo_info["type"] == "district":
                 parent_stratum_id = filer_strata["district"][
                     geo_info["congressional_district_geoid"]
                 ]
-                note = f"Congressional District {geo_info['congressional_district_geoid']} EITC received with {n_children} children (filers)"
-                constraints = [
-                    StratumConstraint(
-                        constraint_variable="tax_unit_is_filer",
-                        operation="==",
-                        value="1",
-                    ),
-                    StratumConstraint(
-                        constraint_variable="congressional_district_geoid",
-                        operation="==",
-                        value=str(geo_info["congressional_district_geoid"]),
-                    ),
-                ]
+                note = f"Congressional District {geo_info['congressional_district_geoid']} EITC received with {n_children} children (recipients)"
+
+            constraints = _get_eitc_recipient_constraints(geo_info)
 
             # Check if stratum already exists
             existing_stratum = (

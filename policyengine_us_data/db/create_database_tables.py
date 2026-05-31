@@ -331,6 +331,7 @@ SELECT
     t.variable,
     t.value,
     t.period,
+    t.reform_id,
     t.active,
     CASE
         WHEN MAX(CASE
@@ -368,7 +369,7 @@ SELECT
 FROM targets t
 LEFT JOIN stratum_constraints sc ON t.stratum_id = sc.stratum_id
 GROUP BY t.target_id, t.stratum_id, t.variable,
-         t.value, t.period, t.active;
+         t.value, t.period, t.reform_id, t.active;
 """
 
 
@@ -516,6 +517,18 @@ def create_database(
     engine = create_engine(db_uri)
     SQLModel.metadata.create_all(engine)
 
+    with engine.connect() as conn:
+        target_columns = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(targets)"))
+        }
+        if "reform_id" not in target_columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE targets ADD COLUMN reform_id INTEGER DEFAULT 0"
+                )
+            )
+            conn.commit()
+
     # Populate field_valid_values (must come before triggers)
     from sqlmodel import Session
 
@@ -527,6 +540,8 @@ def create_database(
 
     # Create SQL views
     with engine.connect() as conn:
+        conn.execute(text("DROP VIEW IF EXISTS stratum_domain"))
+        conn.execute(text("DROP VIEW IF EXISTS target_overview"))
         conn.execute(text(STRATUM_DOMAIN_VIEW))
         conn.execute(text(TARGET_OVERVIEW_VIEW))
         conn.commit()

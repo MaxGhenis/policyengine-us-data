@@ -84,4 +84,47 @@ class TestSimpleTakeupConfig:
             SIMPLE_TAKEUP_VARS,
         )
 
-        assert len(SIMPLE_TAKEUP_VARS) == 8
+        assert len(SIMPLE_TAKEUP_VARS) == 9
+
+
+class TestFitL0Weights:
+    def test_passes_target_groups_to_l0_model(self, monkeypatch):
+        import sys
+        import types
+
+        import torch
+        from scipy import sparse
+
+        captured = {}
+
+        class FakeSparseCalibrationWeights:
+            def __init__(self, n_features, **kwargs):
+                self.n_features = n_features
+
+            def fit(self, **kwargs):
+                captured.update(kwargs)
+
+            def get_weights(self, deterministic=True):
+                return torch.ones(self.n_features)
+
+        l0_mod = types.ModuleType("l0")
+        calibration_mod = types.ModuleType("l0.calibration")
+        calibration_mod.SparseCalibrationWeights = FakeSparseCalibrationWeights
+        monkeypatch.setitem(sys.modules, "l0", l0_mod)
+        monkeypatch.setitem(sys.modules, "l0.calibration", calibration_mod)
+
+        from policyengine_us_data.calibration.unified_calibration import (
+            fit_l0_weights,
+        )
+
+        target_groups = np.array([0, 1])
+        weights = fit_l0_weights(
+            X_sparse=sparse.csr_matrix([[1.0, 0.0], [0.0, 1.0]]),
+            targets=np.array([1.0, 2.0]),
+            lambda_l0=1e-8,
+            epochs=2,
+            target_groups=target_groups,
+        )
+
+        np.testing.assert_array_equal(weights, np.ones(2))
+        np.testing.assert_array_equal(captured["target_groups"], target_groups)

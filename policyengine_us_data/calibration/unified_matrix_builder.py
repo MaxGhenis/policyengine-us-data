@@ -29,6 +29,8 @@ from policyengine_us_data.datasets.cps.local_area_calibration.calibration_utils 
 
 logger = logging.getLogger(__name__)
 
+NEUTRALIZE_VARIABLE_REFORM_ID = 1
+
 _GEO_VARS = {
     "state_fips",
     "state_code",
@@ -149,6 +151,13 @@ class UnifiedMatrixBuilder:
             )
         return df.to_dict("records")
 
+    def _target_overview_columns(self) -> set:
+        with self.engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT * FROM target_overview LIMIT 0")
+            )
+            return {col for col in result.keys()}
+
     def _query_targets(self, target_filter: dict) -> pd.DataFrame:
         """Query targets via target_overview view with
         best-period selection."""
@@ -157,7 +166,13 @@ class UnifiedMatrixBuilder:
         if "domain_variables" in target_filter:
             dvs = target_filter["domain_variables"]
             ph = ",".join(f"'{dv}'" for dv in dvs)
-            or_conditions.append(f"tv.domain_variable IN ({ph})")
+            or_conditions.append(
+                "EXISTS ("
+                "SELECT 1 FROM stratum_constraints sc_domain "
+                "WHERE sc_domain.stratum_id = tv.stratum_id "
+                f"AND sc_domain.constraint_variable IN ({ph})"
+                ")"
+            )
 
         if "variables" in target_filter:
             vs = ",".join(f"'{v}'" for v in target_filter["variables"])
@@ -176,16 +191,22 @@ class UnifiedMatrixBuilder:
         else:
             where_clause = " OR ".join(f"({c})" for c in or_conditions)
 
+        view_columns = self._target_overview_columns()
+        reform_select = (
+            "tv.reform_id" if "reform_id" in view_columns else "0 AS reform_id"
+        )
+        active_filter = "tv.active = 1 AND" if "active" in view_columns else ""
+
         query = f"""
         WITH filtered_targets AS (
             SELECT tv.target_id, tv.stratum_id, tv.variable,
-                   tv.value, tv.period, tv.geo_level,
+                   tv.value, tv.period, {reform_select}, tv.geo_level,
                    tv.geographic_id, tv.domain_variable
             FROM target_overview tv
-            WHERE {where_clause}
+            WHERE {active_filter} ({where_clause})
         ),
         best_periods AS (
-            SELECT stratum_id, variable,
+            SELECT stratum_id, variable, reform_id,
                 CASE
                     WHEN MAX(CASE WHEN period <= :time_period
                              THEN period END) IS NOT NULL
@@ -194,13 +215,14 @@ class UnifiedMatrixBuilder:
                     ELSE MIN(period)
                 END as best_period
             FROM filtered_targets
-            GROUP BY stratum_id, variable
+            GROUP BY stratum_id, variable, reform_id
         )
         SELECT ft.*
         FROM filtered_targets ft
         JOIN best_periods bp
             ON ft.stratum_id = bp.stratum_id
             AND ft.variable = bp.variable
+            AND ft.reform_id = bp.reform_id
             AND ft.period = bp.best_period
         ORDER BY ft.target_id
         """
@@ -458,8 +480,10 @@ class UnifiedMatrixBuilder:
 
         parts: List[str] = []
         parts.append("/".join(geo_parts) if geo_parts else "national")
-        if reform_id > 0:
+        if reform_id == NEUTRALIZE_VARIABLE_REFORM_ID:
             parts.append(f"{variable}_expenditure")
+        elif reform_id > 0:
+            parts.append(f"{variable}_reform_{reform_id}")
         else:
             parts.append(variable)
 
@@ -545,6 +569,64 @@ class UnifiedMatrixBuilder:
             dtype=np.float32,
         )
 
+    @staticmethod
+    def _neutralize_variable_reform(variable: str):
+        from policyengine_core.reforms import Reform
+
+        class NeutralizeVariable(Reform):
+            def apply(self):
+                self.neutralize_variable(variable)
+
+        return NeutralizeVariable
+
+    def _configure_clone_sim(
+        self,
+        sim,
+        clone_state_fips: np.ndarray,
+        sim_modifier=None,
+        clone_idx: int = 0,
+    ) -> None:
+        sim.set_input(
+            "state_fips",
+            self.time_period,
+            clone_state_fips.astype(np.int32),
+        )
+        if sim_modifier is not None:
+            sim_modifier(sim, clone_idx)
+        for var in get_calculated_variables(sim):
+            sim.delete_arrays(var)
+
+    def _calculate_neutralized_expenditure_values(
+        self,
+        clone_state_fips: np.ndarray,
+        variable: str,
+        baseline_income_tax: np.ndarray,
+        sim_modifier=None,
+        clone_idx: int = 0,
+    ) -> np.ndarray:
+        """Calculate household tax-expenditure values for one clone.
+
+        The DB convention uses reform_id=1 to mean "neutralize the target
+        variable and fit the income-tax delta", matching the legacy ECPS JCT
+        target semantics.
+        """
+        from policyengine_us import Microsimulation
+
+        reform = self._neutralize_variable_reform(variable)
+        reform_sim = Microsimulation(dataset=self.dataset_path, reform=reform)
+        self._configure_clone_sim(
+            reform_sim,
+            clone_state_fips,
+            sim_modifier=sim_modifier,
+            clone_idx=clone_idx,
+        )
+        reform_income_tax = reform_sim.calculate(
+            "income_tax",
+            self.time_period,
+            map_to="household",
+        ).values.astype(np.float32)
+        return (reform_income_tax - baseline_income_tax).astype(np.float32)
+
     # ---------------------------------------------------------------
     # Clone simulation
     # ---------------------------------------------------------------
@@ -554,9 +636,10 @@ class UnifiedMatrixBuilder:
         clone_state_fips: np.ndarray,
         n_records: int,
         variables: set,
+        reform_variables: set,
         sim_modifier=None,
         clone_idx: int = 0,
-    ) -> Tuple[Dict[str, np.ndarray], object]:
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray], object]:
         """Simulate one clone with assigned geography.
 
         Args:
@@ -564,6 +647,8 @@ class UnifiedMatrixBuilder:
                 (n_records,).
             n_records: Number of base records.
             variables: Target variable names to compute.
+            reform_variables: Variables whose neutralization tax-expenditure
+                values are needed.
             sim_modifier: Optional callback(sim, clone_idx)
                 called after state_fips is set but before
                 cache clearing. Used for takeup
@@ -577,15 +662,12 @@ class UnifiedMatrixBuilder:
         from policyengine_us import Microsimulation
 
         sim = Microsimulation(dataset=self.dataset_path)
-        sim.set_input(
-            "state_fips",
-            self.time_period,
-            clone_state_fips.astype(np.int32),
+        self._configure_clone_sim(
+            sim,
+            clone_state_fips,
+            sim_modifier=sim_modifier,
+            clone_idx=clone_idx,
         )
-        if sim_modifier is not None:
-            sim_modifier(sim, clone_idx)
-        for var in get_calculated_variables(sim):
-            sim.delete_arrays(var)
 
         var_values: Dict[str, np.ndarray] = {}
         for var in variables:
@@ -600,7 +682,32 @@ class UnifiedMatrixBuilder:
             except Exception as exc:
                 logger.warning("Cannot calculate '%s': %s", var, exc)
 
-        return var_values, sim
+        reform_values: Dict[str, np.ndarray] = {}
+        if reform_variables:
+            baseline_income_tax = sim.calculate(
+                "income_tax",
+                self.time_period,
+                map_to="household",
+            ).values.astype(np.float32)
+            for var in sorted(reform_variables):
+                try:
+                    reform_values[var] = (
+                        self._calculate_neutralized_expenditure_values(
+                            clone_state_fips,
+                            var,
+                            baseline_income_tax,
+                            sim_modifier=sim_modifier,
+                            clone_idx=clone_idx,
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Cannot calculate neutralized expenditure '%s': %s",
+                        var,
+                        exc,
+                    )
+
+        return var_values, reform_values, sim
 
     # ---------------------------------------------------------------
     # Main build method
@@ -698,6 +805,7 @@ class UnifiedMatrixBuilder:
         target_geo_info: List[Tuple[str, str]] = []
         target_names: List[str] = []
         non_geo_constraints_list: List[List[dict]] = []
+        reform_ids: List[int] = []
 
         for _, row in targets_df.iterrows():
             sid = int(row["stratum_id"])
@@ -713,12 +821,32 @@ class UnifiedMatrixBuilder:
                 c for c in constraints if c["variable"] not in _GEO_VARS
             ]
             non_geo_constraints_list.append(non_geo)
+            reform_id = row.get("reform_id", 0)
+            if pd.isna(reform_id):
+                reform_id = 0
+            reform_id = int(reform_id)
+            reform_ids.append(reform_id)
 
             target_names.append(
-                self._make_target_name(str(row["variable"]), constraints)
+                self._make_target_name(
+                    str(row["variable"]),
+                    constraints,
+                    reform_id=reform_id,
+                )
             )
 
-        unique_variables = set(targets_df["variable"].values)
+        unique_variables = set(
+            targets_df.loc[
+                np.array(reform_ids) == 0,
+                "variable",
+            ].values
+        )
+        reform_variables = set(
+            targets_df.loc[
+                np.array(reform_ids) == NEUTRALIZE_VARIABLE_REFORM_ID,
+                "variable",
+            ].values
+        )
 
         # 5. Clone loop
         from pathlib import Path
@@ -753,10 +881,11 @@ class UnifiedMatrixBuilder:
                 len(np.unique(clone_states)),
             )
 
-            var_values, clone_sim = self._simulate_clone(
+            var_values, reform_values, clone_sim = self._simulate_clone(
                 clone_states,
                 n_records,
                 unique_variables,
+                reform_variables,
                 sim_modifier=sim_modifier,
                 clone_idx=clone_idx,
             )
@@ -770,6 +899,7 @@ class UnifiedMatrixBuilder:
 
             for row_idx in range(n_targets):
                 variable = str(targets_df.iloc[row_idx]["variable"])
+                reform_id = reform_ids[row_idx]
                 geo_level, geo_id = target_geo_info[row_idx]
                 non_geo = non_geo_constraints_list[row_idx]
 
@@ -806,7 +936,27 @@ class UnifiedMatrixBuilder:
                     )
                 )
 
-                if variable.endswith("_count"):
+                if reform_id == NEUTRALIZE_VARIABLE_REFORM_ID:
+                    if variable not in reform_values:
+                        continue
+                    if constraint_key not in mask_cache:
+                        mask_cache[constraint_key] = (
+                            self._evaluate_constraints_entity_aware(
+                                clone_sim,
+                                non_geo,
+                                n_records,
+                            )
+                        )
+                    mask = mask_cache[constraint_key]
+                    values = reform_values[variable] * mask
+                elif reform_id > 0:
+                    logger.warning(
+                        "Unsupported reform_id=%s for target '%s'",
+                        reform_id,
+                        variable,
+                    )
+                    continue
+                elif variable.endswith("_count"):
                     vkey = (variable, constraint_key)
                     if vkey not in count_cache:
                         count_cache[vkey] = self._calculate_target_values(

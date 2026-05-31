@@ -281,6 +281,7 @@ def fit_l0_weights(
     epochs: int = DEFAULT_EPOCHS,
     device: str = "cpu",
     verbose_freq: Optional[int] = None,
+    target_groups: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Fit L0-regularized calibration weights.
 
@@ -291,6 +292,7 @@ def fit_l0_weights(
         epochs: Training epochs.
         device: Torch device.
         verbose_freq: Print frequency. Defaults to 10%.
+        target_groups: Optional group ID per target row for balanced loss.
 
     Returns:
         Weight array of shape (n_records,).
@@ -344,7 +346,7 @@ def fit_l0_weights(
         model.fit(
             M=X_sparse,
             y=targets,
-            target_groups=None,
+            target_groups=target_groups,
             lambda_l0=lambda_l0,
             lambda_l2=LAMBDA_L2,
             lr=LEARNING_RATE,
@@ -534,6 +536,9 @@ def run_calibration(
     from policyengine_us_data.calibration.unified_matrix_builder import (
         UnifiedMatrixBuilder,
     )
+    from policyengine_us_data.datasets.cps.local_area_calibration.calibration_utils import (
+        create_target_groups,
+    )
 
     t0 = time.time()
 
@@ -671,6 +676,7 @@ def run_calibration(
 
     # Step 7: L0 calibration
     targets = targets_df["value"].values
+    target_groups, _ = create_target_groups(targets_df)
 
     row_sums = np.array(X_sparse.sum(axis=1)).flatten()
     achievable = row_sums > 0
@@ -686,6 +692,7 @@ def run_calibration(
         lambda_l0=lambda_l0,
         epochs=epochs,
         device=device,
+        target_groups=target_groups,
     )
 
     logger.info(

@@ -1,0 +1,796 @@
+{
+  "base_dataset_path": "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5",
+  "contract_version": 1,
+  "datasets": {
+    "2026": {
+      "age_max_pct_error": 2.490864186428957e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2026.h5",
+      "max_constraint_pct_error": 4.569517519516066e-08,
+      "metadata": "2026.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2027": {
+      "age_max_pct_error": 3.62935966921649e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2027.h5",
+      "max_constraint_pct_error": 1.4827666260374273e-05,
+      "metadata": "2027.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2028": {
+      "age_max_pct_error": 1.1113451165556183e-09,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2028.h5",
+      "max_constraint_pct_error": 1.2537419428200225e-08,
+      "metadata": "2028.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2029": {
+      "age_max_pct_error": 1.6053594899987112e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2029.h5",
+      "max_constraint_pct_error": 1.7662486402032396e-07,
+      "metadata": "2029.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2030": {
+      "age_max_pct_error": 1.780844759359493e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2030.h5",
+      "max_constraint_pct_error": 3.2092828857938243e-07,
+      "metadata": "2030.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2031": {
+      "age_max_pct_error": 4.024018099869975e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2031.h5",
+      "max_constraint_pct_error": 3.0054247777260674e-06,
+      "metadata": "2031.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2032": {
+      "age_max_pct_error": 2.631725740106009e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2032.h5",
+      "max_constraint_pct_error": 1.6265559099387993e-05,
+      "metadata": "2032.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2033": {
+      "age_max_pct_error": 2.4448643535626544e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2033.h5",
+      "max_constraint_pct_error": 7.85950198220643e-09,
+      "metadata": "2033.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2034": {
+      "age_max_pct_error": 4.055601996269448e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2034.h5",
+      "max_constraint_pct_error": 3.1783460483358866e-05,
+      "metadata": "2034.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2035": {
+      "age_max_pct_error": 8.696764935414374e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2035.h5",
+      "max_constraint_pct_error": 2.0054685637515896e-08,
+      "metadata": "2035.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2036": {
+      "age_max_pct_error": 1.6124395570566124e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2036.h5",
+      "max_constraint_pct_error": 9.549464409025372e-08,
+      "metadata": "2036.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2037": {
+      "age_max_pct_error": 2.673899150609124e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2037.h5",
+      "max_constraint_pct_error": 1.4799896539177294e-06,
+      "metadata": "2037.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2038": {
+      "age_max_pct_error": 2.5689785978760343e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2038.h5",
+      "max_constraint_pct_error": 7.4045659831829365e-09,
+      "metadata": "2038.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2039": {
+      "age_max_pct_error": 2.7637325656963898e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2039.h5",
+      "max_constraint_pct_error": 1.0510365533345161e-07,
+      "metadata": "2039.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2040": {
+      "age_max_pct_error": 5.559276343165705e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2040.h5",
+      "max_constraint_pct_error": 2.363859242518663e-06,
+      "metadata": "2040.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2041": {
+      "age_max_pct_error": 7.511718783551073e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2041.h5",
+      "max_constraint_pct_error": 2.4543911942202643e-05,
+      "metadata": "2041.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2042": {
+      "age_max_pct_error": 9.623017013645643e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2042.h5",
+      "max_constraint_pct_error": 1.812816098233101e-08,
+      "metadata": "2042.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2043": {
+      "age_max_pct_error": 1.8492116856519294e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2043.h5",
+      "max_constraint_pct_error": 6.007301409972407e-07,
+      "metadata": "2043.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2044": {
+      "age_max_pct_error": 2.4577165991395535e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2044.h5",
+      "max_constraint_pct_error": 1.1092467522362515e-08,
+      "metadata": "2044.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2045": {
+      "age_max_pct_error": 1.3580317879286064e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2045.h5",
+      "max_constraint_pct_error": 1.732551984648285e-07,
+      "metadata": "2045.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2046": {
+      "age_max_pct_error": 8.157326649117898e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2046.h5",
+      "max_constraint_pct_error": 1.924884792620793e-05,
+      "metadata": "2046.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2047": {
+      "age_max_pct_error": 1.9100107264000494e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2047.h5",
+      "max_constraint_pct_error": 1.5554242765270645e-07,
+      "metadata": "2047.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2048": {
+      "age_max_pct_error": 7.168433192755366e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2048.h5",
+      "max_constraint_pct_error": 5.511703935119635e-07,
+      "metadata": "2048.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2049": {
+      "age_max_pct_error": 1.6536261550384024e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2049.h5",
+      "max_constraint_pct_error": 1.2695401018247382e-05,
+      "metadata": "2049.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2050": {
+      "age_max_pct_error": 3.525145184571496e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2050.h5",
+      "max_constraint_pct_error": 5.288295784489783e-07,
+      "metadata": "2050.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2051": {
+      "age_max_pct_error": 6.646289407452259e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2051.h5",
+      "max_constraint_pct_error": 4.859146838997231e-05,
+      "metadata": "2051.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2052": {
+      "age_max_pct_error": 8.627297148109062e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2052.h5",
+      "max_constraint_pct_error": 1.7039216109121842e-07,
+      "metadata": "2052.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2053": {
+      "age_max_pct_error": 2.59634289748604e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2053.h5",
+      "max_constraint_pct_error": 4.549391172177367e-07,
+      "metadata": "2053.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2054": {
+      "age_max_pct_error": 5.0333196228378434e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2054.h5",
+      "max_constraint_pct_error": 1.2279717988202332e-07,
+      "metadata": "2054.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2055": {
+      "age_max_pct_error": 9.585668115288131e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2055.h5",
+      "max_constraint_pct_error": 8.413356607368395e-06,
+      "metadata": "2055.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2056": {
+      "age_max_pct_error": 4.5079670783095625e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2056.h5",
+      "max_constraint_pct_error": 1.2107710579725367e-08,
+      "metadata": "2056.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2057": {
+      "age_max_pct_error": 4.667650575137731e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2057.h5",
+      "max_constraint_pct_error": 1.012440409316845e-08,
+      "metadata": "2057.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2058": {
+      "age_max_pct_error": 1.0553892156048288e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2058.h5",
+      "max_constraint_pct_error": 4.194780199974093e-08,
+      "metadata": "2058.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2059": {
+      "age_max_pct_error": 1.0380998320051062e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2059.h5",
+      "max_constraint_pct_error": 1.828554797121467e-07,
+      "metadata": "2059.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2060": {
+      "age_max_pct_error": 4.851755991911124e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2060.h5",
+      "max_constraint_pct_error": 1.0159619203352804e-08,
+      "metadata": "2060.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2061": {
+      "age_max_pct_error": 3.7174935443857825e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2061.h5",
+      "max_constraint_pct_error": 7.549097629649541e-09,
+      "metadata": "2061.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2062": {
+      "age_max_pct_error": 7.375976356631627e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2062.h5",
+      "max_constraint_pct_error": 3.6648150158631393e-06,
+      "metadata": "2062.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2063": {
+      "age_max_pct_error": 6.330839876174222e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2063.h5",
+      "max_constraint_pct_error": 1.1350924376883276e-08,
+      "metadata": "2063.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2064": {
+      "age_max_pct_error": 4.3135288459253225e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2064.h5",
+      "max_constraint_pct_error": 3.195700219180033e-07,
+      "metadata": "2064.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2065": {
+      "age_max_pct_error": 6.393708291568502e-10,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2065.h5",
+      "max_constraint_pct_error": 1.0698856668265078e-08,
+      "metadata": "2065.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2066": {
+      "age_max_pct_error": 1.198780688297185e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2066.h5",
+      "max_constraint_pct_error": 5.806692440796223e-07,
+      "metadata": "2066.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2067": {
+      "age_max_pct_error": 3.3959136210513866e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2067.h5",
+      "max_constraint_pct_error": 2.1135014949251838e-07,
+      "metadata": "2067.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2068": {
+      "age_max_pct_error": 6.758039619721738e-07,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2068.h5",
+      "max_constraint_pct_error": 2.5308403131009943e-06,
+      "metadata": "2068.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2069": {
+      "age_max_pct_error": 1.904706987092076e-09,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2069.h5",
+      "max_constraint_pct_error": 1.1970392423528287e-08,
+      "metadata": "2069.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2070": {
+      "age_max_pct_error": 4.643203128937383e-08,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2070.h5",
+      "max_constraint_pct_error": 8.714578857625563e-07,
+      "metadata": "2070.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2071": {
+      "age_max_pct_error": 5.2876473494296966e-05,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2071.h5",
+      "max_constraint_pct_error": 5.9340893882846165e-05,
+      "metadata": "2071.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2072": {
+      "age_max_pct_error": 3.951283474510918e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2072.h5",
+      "max_constraint_pct_error": 3.814327003896627e-05,
+      "metadata": "2072.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2073": {
+      "age_max_pct_error": 2.1625255689684166e-06,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2073.h5",
+      "max_constraint_pct_error": 3.996079782568122e-05,
+      "metadata": "2073.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2074": {
+      "age_max_pct_error": 7.923054522662879e-14,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2074.h5",
+      "max_constraint_pct_error": 0.01782823524816006,
+      "metadata": "2074.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2075": {
+      "age_max_pct_error": 3.798064247903137e-13,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2075.h5",
+      "max_constraint_pct_error": 0.3680082995922233,
+      "metadata": "2075.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2076": {
+      "age_max_pct_error": 2.0794391580975782e-13,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2076.h5",
+      "max_constraint_pct_error": 0.18518670028812143,
+      "metadata": "2076.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2077": {
+      "age_max_pct_error": 9.404551464516411e-14,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2077.h5",
+      "max_constraint_pct_error": 0.08359563075827016,
+      "metadata": "2077.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2078": {
+      "age_max_pct_error": 4.5379428318112587e-13,
+      "calibration_quality": "exact",
+      "fell_back_to_ipf": false,
+      "h5": "2078.h5",
+      "max_constraint_pct_error": 5.118050244611684e-14,
+      "metadata": "2078.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2079": {
+      "age_max_pct_error": 0.3466326891583853,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2079.h5",
+      "max_constraint_pct_error": 0.34663268915836676,
+      "metadata": "2079.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2080": {
+      "age_max_pct_error": 1.6038148448065115,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2080.h5",
+      "max_constraint_pct_error": 1.6038148448064626,
+      "metadata": "2080.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2081": {
+      "age_max_pct_error": 2.8374485765064437,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2081.h5",
+      "max_constraint_pct_error": 2.8374485765064246,
+      "metadata": "2081.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2082": {
+      "age_max_pct_error": 4.095617145464169,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2082.h5",
+      "max_constraint_pct_error": 4.095617145464152,
+      "metadata": "2082.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2083": {
+      "age_max_pct_error": 5.4174741648706375,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2083.h5",
+      "max_constraint_pct_error": 5.417474164870553,
+      "metadata": "2083.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2084": {
+      "age_max_pct_error": 6.819612512791882,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2084.h5",
+      "max_constraint_pct_error": 6.836208750355563,
+      "metadata": "2084.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2085": {
+      "age_max_pct_error": 8.219460095855254,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2085.h5",
+      "max_constraint_pct_error": 8.21946009585494,
+      "metadata": "2085.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2086": {
+      "age_max_pct_error": 9.801446921954437,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2086.h5",
+      "max_constraint_pct_error": 9.801446921954387,
+      "metadata": "2086.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2087": {
+      "age_max_pct_error": 11.465689261669269,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2087.h5",
+      "max_constraint_pct_error": 11.47390314469818,
+      "metadata": "2087.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2088": {
+      "age_max_pct_error": 13.157686173772415,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2088.h5",
+      "max_constraint_pct_error": 13.352511440814682,
+      "metadata": "2088.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2089": {
+      "age_max_pct_error": 14.86119758112448,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2089.h5",
+      "max_constraint_pct_error": 14.975045987994204,
+      "metadata": "2089.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2090": {
+      "age_max_pct_error": 16.566511107109207,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2090.h5",
+      "max_constraint_pct_error": 16.621241380028916,
+      "metadata": "2090.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    },
+    "2091": {
+      "age_max_pct_error": 18.287003501756324,
+      "calibration_quality": "approximate",
+      "fell_back_to_ipf": false,
+      "h5": "2091.h5",
+      "max_constraint_pct_error": 18.869613175287945,
+      "metadata": "2091.h5.metadata.json",
+      "method_used": "entropy",
+      "negative_weight_pct": 0.0
+    }
+  },
+  "generated_at": "2026-03-31T03:09:39.851543+00:00",
+  "profile": {
+    "allow_greg_fallback": false,
+    "approximate_windows": [
+      {
+        "end_year": 2078,
+        "max_age_error_pct": 0.5,
+        "max_constraint_error_pct": 0.5,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2075
+      },
+      {
+        "end_year": 2085,
+        "max_age_error_pct": 10.0,
+        "max_constraint_error_pct": 10.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2079
+      },
+      {
+        "end_year": 2095,
+        "max_age_error_pct": 20.0,
+        "max_constraint_error_pct": 20.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2086
+      },
+      {
+        "end_year": null,
+        "max_age_error_pct": 35.0,
+        "max_constraint_error_pct": 35.0,
+        "max_negative_weight_pct": 0.0,
+        "start_year": 2096
+      }
+    ],
+    "calibration_method": "entropy",
+    "description": "Age, Social Security, taxable payroll, and TOB using positive entropy calibration.",
+    "max_age_error_pct": 0.1,
+    "max_constraint_error_pct": 0.1,
+    "max_negative_weight_pct": 0.0,
+    "name": "ss-payroll-tob",
+    "use_greg": false,
+    "use_h6_reform": false,
+    "use_payroll": true,
+    "use_ss": true,
+    "use_tob": true
+  },
+  "target_source": {
+    "description": "2025 Trustees current-law baseline used by the legacy long-term calibration stack.",
+    "file": "trustees_2025_current_law.csv",
+    "name": "trustees_2025_current_law",
+    "notes": [
+      "Generated from social_security_aux.csv for explicit source selection."
+    ],
+    "source_urls": [
+      "https://www.ssa.gov/oact/tr/2025/lrIndex.html",
+      "https://www.ssa.gov/oact/solvency/provisions/tables/table_run133.html"
+    ],
+    "type": "trustees_current_law"
+  },
+  "year_range": {
+    "end": 2091,
+    "start": 2026
+  },
+  "years": [
+    2026,
+    2027,
+    2028,
+    2029,
+    2030,
+    2031,
+    2032,
+    2033,
+    2034,
+    2035,
+    2036,
+    2037,
+    2038,
+    2039,
+    2040,
+    2041,
+    2042,
+    2043,
+    2044,
+    2045,
+    2046,
+    2047,
+    2048,
+    2049,
+    2050,
+    2051,
+    2052,
+    2053,
+    2054,
+    2055,
+    2056,
+    2057,
+    2058,
+    2059,
+    2060,
+    2061,
+    2062,
+    2063,
+    2064,
+    2065,
+    2066,
+    2067,
+    2068,
+    2069,
+    2070,
+    2071,
+    2072,
+    2073,
+    2074,
+    2075,
+    2076,
+    2077,
+    2078,
+    2079,
+    2080,
+    2081,
+    2082,
+    2083,
+    2084,
+    2085,
+    2086,
+    2087,
+    2088,
+    2089,
+    2090,
+    2091
+  ]
+}

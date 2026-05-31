@@ -50,6 +50,7 @@ def generate_synthetic_cps(n_households=1000, seed=42):
                     np.random.lognormal(10, 1.5) if age >= 18 else 0
                 ),
                 "is_disabled": np.random.random() < 0.15,
+                "takes_up_medicaid_if_eligible": np.random.random() < 0.20,
                 "role": role,
             }
 
@@ -63,8 +64,7 @@ def generate_synthetic_cps(n_households=1000, seed=42):
             "household_weight": np.random.uniform(500, 2000),
             "household_size": hh_size,
             "housing_tenure": np.random.choice(["own", "rent", "other"]),
-            "snap_reported": np.random.random() < 0.15,
-            "medicaid_reported": np.random.random() < 0.20,
+            "takes_up_snap_if_eligible": np.random.random() < 0.15,
         }
 
         households.append(household)

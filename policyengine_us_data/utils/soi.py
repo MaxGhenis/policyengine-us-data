@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from .uprating import create_policyengine_uprating_factors_table
-from policyengine_us_data.storage import STORAGE_FOLDER, CALIBRATION_FOLDER
+from policyengine_us_data.storage import CALIBRATION_FOLDER
 
 
 def pe_to_soi(pe_dataset, year):
@@ -11,9 +11,8 @@ def pe_to_soi(pe_dataset, year):
     pe_sim.default_calculation_period = year
     df = pd.DataFrame()
 
-    pe = lambda variable: np.array(
-        pe_sim.calculate(variable, map_to="tax_unit")
-    )
+    def pe(variable):
+        return np.array(pe_sim.calculate(variable, map_to="tax_unit"))
 
     df["adjusted_gross_income"] = pe("adjusted_gross_income")
     df["exemption"] = pe("exemptions")
@@ -170,6 +169,7 @@ def get_soi(year: int) -> pd.DataFrame:
     }
     soi = pd.read_csv(CALIBRATION_FOLDER / "soi_targets.csv")
     soi = soi[soi.Year == soi.Year.max()]
+    soi["Value"] = pd.to_numeric(soi["Value"], errors="coerce").astype(float)
 
     uprating_factors = {}
     for variable in uprating_map:
