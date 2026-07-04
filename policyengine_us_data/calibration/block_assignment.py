@@ -21,6 +21,7 @@ Additional geography lookups use storage/block_crosswalk.csv.gz which maps
 blocks to SLDU, SLDL, Place, VTD, PUMA, and ZCTA.
 """
 
+import logging
 import random
 import unicodedata
 from functools import lru_cache
@@ -35,6 +36,8 @@ from policyengine_us.variables.household.demographic.geographic.county.county_en
     County,
 )
 from policyengine_us_data.storage import STORAGE_FOLDER
+
+logger = logging.getLogger(__name__)
 
 # === GEOID Parsing Functions ===
 # Block GEOID format: SSCCCTTTTTTBBBB (15 chars)
@@ -71,8 +74,16 @@ def _build_county_fips_to_enum() -> Dict[str, str]:
     Cached to avoid repeated downloads.
     """
     url = "https://www2.census.gov/geo/docs/reference/codes2020/national_county2020.txt"
-    response = requests.get(url, timeout=60)
-    response.raise_for_status()
+    try:
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        logger.warning(
+            "Could not download Census county FIPS lookup (%s); "
+            "falling back to UNKNOWN county enum values.",
+            error,
+        )
+        return {}
     df = pd.read_csv(
         StringIO(response.content.decode("utf-8")),
         delimiter="|",
