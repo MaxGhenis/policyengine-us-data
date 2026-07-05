@@ -13,6 +13,7 @@ from policyengine_us_data.db.create_database_tables import (
 )
 from policyengine_us_data.db.etl_irs_soi import (
     GEOGRAPHY_FILE_TARGET_SPECS,
+    WORKBOOK_NATIONAL_DOMAIN_TARGETS,
     get_geography_soi_year,
     get_national_geography_soi_agi_targets,
     get_national_geography_soi_target,
@@ -24,6 +25,17 @@ from policyengine_us_data.db.etl_irs_soi import (
     load_national_geography_ctc_targets,
     load_national_workbook_soi_targets,
 )
+from policyengine_us_data.utils.soi import get_national_soi_aggregate_rows
+
+
+HIGH_VALUE_WORKBOOK_SOI_TARGETS_EXPLICITLY_TRIAGED = {
+    "exemptions",
+    "income_tax_after_credits",
+    "standard_deduction",
+    "taxable_income",
+    "total_pension_income",
+    "tottax",
+}
 
 
 def _create_test_engine(tmp_path):
@@ -213,6 +225,38 @@ def test_geography_file_aggregate_target_spec_reuses_shared_registry():
         "breakdown": None,
     }
     assert spec in GEOGRAPHY_FILE_TARGET_SPECS
+
+
+def test_geography_file_aggregate_target_spec_includes_employment_income():
+    spec = _get_geography_file_aggregate_target_spec("employment_income")
+
+    assert spec == {
+        "code": "00200",
+        "name": "employment_income",
+        "breakdown": None,
+    }
+    assert spec in GEOGRAPHY_FILE_TARGET_SPECS
+
+
+def test_workbook_national_domain_targets_include_employment_income():
+    assert WORKBOOK_NATIONAL_DOMAIN_TARGETS["employment_income"] == "employment_income"
+
+
+def test_high_value_workbook_soi_targets_are_mapped_or_explicitly_triaged():
+    soi_targets = get_national_soi_aggregate_rows(2024)
+    amount_rows = soi_targets[~soi_targets["Count"]]
+    high_value_variables = set(
+        amount_rows.loc[amount_rows["Value"].abs() >= 1_000_000_000_000, "Variable"]
+    )
+    mapped_variables = set(WORKBOOK_NATIONAL_DOMAIN_TARGETS.values()) | {
+        "adjusted_gross_income"
+    }
+
+    assert (
+        high_value_variables
+        - mapped_variables
+        - HIGH_VALUE_WORKBOOK_SOI_TARGETS_EXPLICITLY_TRIAGED
+    ) == set()
 
 
 def test_get_national_geography_soi_target_reads_amount_and_count(monkeypatch):

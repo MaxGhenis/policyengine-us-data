@@ -147,12 +147,12 @@ IRS variables use a "filer population" intermediate layer and conditional strata
 Geographic stratum (no domain constraints)
   └── Tax Filer stratum (constraint: tax_unit_is_filer==1)
        ├── AGI bracket strata (constraint: adjusted_gross_income range)
-       ├── EITC by child count (constraint: eitc_child_count)
+       ├── EITC by child count (constraints: eitc > 0, eitc_child_count)
        └── IRS variable strata (constraint: variable > 0)
             - Targets: tax_unit_count + variable amount
 ```
 
-Each IRS variable (e.g., `rental_income`, `self_employment_income`) gets its own stratum with a constraint requiring that variable > 0. This captures both the count of filers with that income type and the total amount.
+Each IRS variable (e.g., `rental_income`, `self_employment_income`) gets its own stratum with a constraint requiring that variable > 0. This captures both the count of filers with that income type and the total amount. EITC child-count strata follow the same pattern: they are recipient strata, so they require both `eitc > 0` and the relevant `eitc_child_count` split.
 
 ### Geographic Hierarchy
 

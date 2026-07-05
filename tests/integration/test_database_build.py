@@ -255,6 +255,43 @@ def test_congressional_district_strata(built_db):
     assert n_cds >= 435, f"Expected >= 435 CD strata, got {n_cds}"
 
 
+def test_soi_employment_income_targets(built_db):
+    """Wage and salary SOI targets should be loaded for filers."""
+    conn = sqlite3.connect(str(built_db))
+    rows = conn.execute(
+        """
+        SELECT variable, geo_level, period, COUNT(*), SUM(value)
+        FROM target_overview
+        WHERE domain_variable = 'employment_income'
+          AND variable IN ('employment_income', 'tax_unit_count')
+        GROUP BY variable, geo_level, period
+        """
+    ).fetchall()
+    conn.close()
+
+    targets = {
+        (variable, geo_level, period): (count, value)
+        for variable, geo_level, period, count, value in rows
+    }
+
+    assert targets[("employment_income", "national", 2023)] == (
+        1,
+        pytest.approx(10_204_095_705_000.0),
+    )
+    assert targets[("tax_unit_count", "national", 2023)] == (
+        1,
+        pytest.approx(128_591_050.0),
+    )
+    assert targets[("employment_income", "state", 2022)] == (
+        51,
+        pytest.approx(9_493_040_700_000.0),
+    )
+    assert targets[("tax_unit_count", "state", 2022)] == (
+        51,
+        pytest.approx(125_111_730.0),
+    )
+
+
 def test_all_target_variables_exist_in_policyengine(built_db):
     """Every target variable must be a valid policyengine-us variable."""
     from policyengine_us.system import system
@@ -276,3 +313,36 @@ def test_total_target_count(built_db):
     # With national + age + medicaid + SNAP + state income tax + IRS SOI,
     # we expect thousands of targets.
     assert count > 1000, f"Expected > 1000 total targets, got {count}"
+
+
+def test_eitc_child_count_targets_require_positive_eitc(built_db):
+    """EITC child-count targets should be conditioned on receiving EITC."""
+    conn = sqlite3.connect(str(built_db))
+    total = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM target_overview
+        WHERE instr(',' || coalesce(domain_variable, '') || ',', ',eitc_child_count,') > 0
+          AND variable IN ('tax_unit_count', 'eitc')
+        """
+    ).fetchone()[0]
+    with_positive_eitc = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM targets t
+        JOIN target_overview o ON o.target_id = t.target_id
+        JOIN stratum_constraints sc
+          ON sc.stratum_id = t.stratum_id
+        WHERE instr(',' || coalesce(o.domain_variable, '') || ',', ',eitc_child_count,') > 0
+          AND t.variable IN ('tax_unit_count', 'eitc')
+          AND sc.constraint_variable = 'eitc'
+          AND sc.operation = '>'
+          AND sc.value = '0'
+        """
+    ).fetchone()[0]
+    conn.close()
+
+    assert total > 0, "Missing EITC child-count targets"
+    assert with_positive_eitc == total, (
+        "Expected every EITC child-count target stratum to include eitc > 0"
+    )

@@ -65,6 +65,7 @@ GEOGRAPHY_FILE_TARGET_SPECS = [
         name="qualified_business_income_deduction",
         breakdown=None,
     ),
+    dict(code="00200", name="employment_income", breakdown=None),
     dict(code="00900", name="self_employment_income", breakdown=None),
     dict(
         code="01000",
@@ -143,6 +144,7 @@ def _skip_coarse_state_agi_person_count_target(geo_type: str, agi_stub: int) -> 
 # `incd` national codes.
 WORKBOOK_NATIONAL_DOMAIN_TARGETS = {
     "dividend_income": "ordinary_dividends",
+    "employment_income": "employment_income",
     "income_tax_before_credits": "income_tax_before_credits",
     "net_capital_gains": "capital_gains_gross",
     "qualified_dividend_income": "qualified_dividends",
@@ -1168,6 +1170,13 @@ def load_soi_data(long_dfs, year, national_year: Optional[int] = None):
                 )
 
                 new_stratum.constraints_rel = constraints
+                new_stratum.constraints_rel.append(
+                    StratumConstraint(
+                        constraint_variable="eitc",
+                        operation=">",
+                        value="0",
+                    )
+                )
                 if n_children == "3+":
                     new_stratum.constraints_rel.append(
                         StratumConstraint(
