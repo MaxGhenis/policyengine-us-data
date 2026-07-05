@@ -121,6 +121,27 @@ NAMED_PROFILES: dict[str, CalibrationProfile] = {
         max_top_10_weight_share_pct=25.0,
         max_top_100_weight_share_pct=95.0,
     ),
+    "age-only-mc": CalibrationProfile(
+        name="age-only-mc",
+        description=(
+            "Age-only calibration using microcalibrate (l0/torch): a per-record "
+            "multiplicative reweight from the baseline weights, which preserves "
+            "the income structure of the base file (donor records stay near "
+            "their baseline weight) instead of the unbounded IPF rake."
+        ),
+        calibration_method="microcalibrate",
+        use_greg=False,
+        use_ss=False,
+        use_payroll=False,
+        use_h6_reform=False,
+        use_tob=False,
+        benchmark_tob=False,
+        allow_greg_fallback=False,
+        min_positive_household_count=1000,
+        min_effective_sample_size=75.0,
+        max_top_10_weight_share_pct=25.0,
+        max_top_100_weight_share_pct=95.0,
+    ),
     "ss": CalibrationProfile(
         name="ss",
         description="Age plus Social Security benefits using positive entropy calibration.",

@@ -1,0 +1,330 @@
+{
+  "base_dataset_path": "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5",
+  "base_dataset_snapshot": {
+    "requested_path": "hf://policyengine/policyengine-us-data/enhanced_cps_2024.h5",
+    "resolved_file_sha256": "96965b0d9931d36beb29486b25fffee8b630e3b62c9376e7265976e02f7ab3ca",
+    "resolved_mtime_ns": 1778905303378497095,
+    "resolved_path": "/Users/maxghenis/.cache/huggingface/hub/models--policyengine--policyengine-us-data/blobs/96965b0d9931d36beb29486b25fffee8b630e3b62c9376e7265976e02f7ab3ca",
+    "resolved_size": 106261154
+  },
+  "calibration_audit": {
+    "age_bucket_count": 18,
+    "age_bucket_size": 5,
+    "age_max_pct_error": 1.947985075940206e-07,
+    "approximate_entropy_error": null,
+    "approximate_solution_error_pct": null,
+    "approximate_solution_used": false,
+    "approximation_method": null,
+    "baseline_weight_sum": 928977973.2597895,
+    "calibrated_weight_sum": 243872258.42375472,
+    "calibration_quality": "exact",
+    "clone_donor_family_count": 900,
+    "clone_donor_family_effective_sample_size": 62.6161655819912,
+    "clone_older_donor_count": 70,
+    "clone_older_donor_effective_sample_size": 28.387249925505408,
+    "clone_worker_donor_count": 100,
+    "clone_worker_donor_effective_sample_size": 42.80017431372828,
+    "constraint_provenance": {
+      "age_targets": {
+        "classification": "hard",
+        "scoring_contract": "population calibration target",
+        "source": "trustees_2025_current_law"
+      },
+      "hi_tob": {
+        "classification": "hard",
+        "scoring_contract": "same formula path used by production scoring",
+        "source": "policyengine_formula_on_scored_h5"
+      },
+      "income_guard_ordinary_nonpayroll_income": {
+        "classification": "hard",
+        "scoring_contract": "not directly consumed by reform scoring",
+        "source": "policyengine_formula_on_realized_rows"
+      },
+      "income_guard_preferential_investment_income": {
+        "classification": "hard",
+        "scoring_contract": "not directly consumed by reform scoring",
+        "source": "policyengine_formula_on_realized_rows"
+      },
+      "oasdi_tob": {
+        "classification": "hard",
+        "scoring_contract": "same formula path used by production scoring",
+        "source": "policyengine_formula_on_scored_h5"
+      },
+      "payroll_total": {
+        "classification": "hard",
+        "scoring_contract": "same formula path used by production scoring",
+        "source": "policyengine_formula_on_scored_h5"
+      },
+      "ss_total": {
+        "classification": "hard",
+        "scoring_contract": "same formula path used by production scoring",
+        "source": "policyengine_formula_on_scored_h5"
+      }
+    },
+    "constraints": {
+      "hi_tob": {
+        "achieved": 1090789002268.2413,
+        "error": 2268.2413330078125,
+        "pct_error": 2.0794501347261592e-07,
+        "target": 1090789000000.0
+      },
+      "income_guard_ordinary_nonpayroll_income": {
+        "achieved": 15804943180965.953,
+        "error": -146077.044921875,
+        "pct_error": -9.242490902952517e-07,
+        "target": 15804943327042.998
+      },
+      "income_guard_preferential_investment_income": {
+        "achieved": 8802860745716.828,
+        "error": 1395784.70703125,
+        "pct_error": 1.5856037811645974e-05,
+        "target": 8802859349932.121
+      },
+      "oasdi_tob": {
+        "achieved": 1293945603508.9062,
+        "error": 3508.90625,
+        "pct_error": 2.711788076716672e-07,
+        "target": 1293945600000.0
+      },
+      "payroll_total": {
+        "achieved": 113504000015715.47,
+        "error": 15715.46875,
+        "pct_error": 1.3845740017972934e-08,
+        "target": 113504000000000.0
+      },
+      "ss_total": {
+        "achieved": 21300794119021.44,
+        "error": 19021.44140625,
+        "pct_error": 8.929921258780676e-08,
+        "target": 21300794100000.0
+      }
+    },
+    "donor_family_count": 41714,
+    "donor_family_effective_sample_size": 514.0917544623352,
+    "effective_sample_size": 514.848088777061,
+    "entropy_error": null,
+    "fell_back_to_ipf": false,
+    "greg_attempted": false,
+    "greg_error": null,
+    "hi_tob_contributor_count": 41714,
+    "hi_tob_contributor_effective_sample_size": 64.7445238930122,
+    "hi_tob_positive_contributor_count": 9320,
+    "largest_negative_weight": 0.0,
+    "lp_fallback_used": false,
+    "max_clone_donor_family_weight_share_pct": 4.727260141746586,
+    "max_clone_older_donor_weight_share_pct": 7.822525598668598,
+    "max_clone_worker_donor_weight_share_pct": 4.766832078272472,
+    "max_constraint_pct_error": 1.5856037811645974e-05,
+    "max_donor_family_weight_share_pct": 1.329004599851862,
+    "max_hi_tob_contribution_share_pct": 6.370701059885005,
+    "max_oasdi_tob_contribution_share_pct": 4.733813073033558,
+    "max_payroll_total_contribution_share_pct": 2.3067044296372954,
+    "max_ss_total_contribution_share_pct": 4.186053842561363,
+    "method_requested": "entropy",
+    "method_used": "entropy",
+    "negative_weight_count": 0,
+    "negative_weight_household_pct": 0.0,
+    "negative_weight_pct": 0.0,
+    "oasdi_tob_contributor_count": 41714,
+    "oasdi_tob_contributor_effective_sample_size": 78.22256043884859,
+    "oasdi_tob_positive_contributor_count": 10179,
+    "payroll_total_contributor_count": 41714,
+    "payroll_total_contributor_effective_sample_size": 404.6498740209789,
+    "payroll_total_positive_contributor_count": 34496,
+    "positive_clone_donor_family_count": 900,
+    "positive_clone_older_donor_count": 70,
+    "positive_clone_worker_donor_count": 100,
+    "positive_donor_family_count": 41714,
+    "positive_weight_count": 61714,
+    "positive_weight_pct": 100.0,
+    "ss_total_contributor_count": 41714,
+    "ss_total_contributor_effective_sample_size": 134.78330865629488,
+    "ss_total_positive_contributor_count": 14560,
+    "support_blueprint": {
+      "base_weight_scale": 5.0,
+      "clone_household_count": 400,
+      "clone_total_prior_weight": 155874014.5580128,
+      "include_value_overrides": false,
+      "mode": "target_year_role_composite_blueprint",
+      "target_year": 2087,
+      "tob_donor_family_prior_regularization": {
+        "applied_max_multiplier": 1.2312511432229745,
+        "applied_median_multiplier": 1.0000004979617612,
+        "applied_min_multiplier": 0.1,
+        "contribution_target": 4.415700000000001e-06,
+        "family_count": 500,
+        "max_weight_scale_multiplier": 10.0,
+        "min_weight_scale_multiplier": 0.1,
+        "mode": "equal_contribution",
+        "score_mode": "hi_tob"
+      }
+    },
+    "top_100_clone_donor_family_weight_share_pct": 75.19999294402494,
+    "top_100_clone_older_donor_weight_share_pct": 99.99999999999999,
+    "top_100_clone_worker_donor_weight_share_pct": 100.0,
+    "top_100_donor_family_weight_share_pct": 32.7215482834375,
+    "top_100_hi_tob_contribution_share_pct": 79.9518886115913,
+    "top_100_oasdi_tob_contribution_share_pct": 76.65900816850824,
+    "top_100_payroll_total_contribution_share_pct": 37.151893084466536,
+    "top_100_ss_total_contribution_share_pct": 61.5837472274837,
+    "top_100_weight_share_pct": 32.71677251260136,
+    "top_10_clone_donor_family_weight_share_pct": 33.25884582323676,
+    "top_10_clone_older_donor_weight_share_pct": 43.61136371976126,
+    "top_10_clone_worker_donor_weight_share_pct": 37.886321432096594,
+    "top_10_donor_family_weight_share_pct": 8.557336024972495,
+    "top_10_hi_tob_contribution_share_pct": 29.97951045430975,
+    "top_10_oasdi_tob_contribution_share_pct": 27.998274516698007,
+    "top_10_payroll_total_contribution_share_pct": 8.946505166957461,
+    "top_10_ss_total_contribution_share_pct": 19.07445341791568,
+    "top_10_weight_share_pct": 8.557336024972495,
+    "validation_issues": [],
+    "validation_passed": true
+  },
+  "contract_version": 1,
+  "policyengine_us": {
+    "package_dir": "/Users/maxghenis/PolicyEngine/policyengine-us-data-crfb-pin/.venv/lib/python3.14/site-packages/policyengine_us",
+    "package_file": "/Users/maxghenis/PolicyEngine/policyengine-us-data-crfb-pin/.venv/lib/python3.14/site-packages/policyengine_us/__init__.py",
+    "package_file_sha256": "4816cc93528d4b0e752d0c27242911fa4d35c97c26ac7ff171c468cf5ae3e670",
+    "package_mtime_ns": 1778950525391246940,
+    "package_size": 498,
+    "package_tree_file_count": 13229,
+    "package_tree_sha256": "22d87cadef959eba850e557b5552733353999e8b63570ca0cc448a98d4af78e9",
+    "package_tree_size": 20314316,
+    "version": "1.691.12"
+  },
+  "profile": {
+    "allow_greg_fallback": false,
+    "approximate_windows": [
+      {
+        "age_bucket_size": 5,
+        "end_year": 2078,
+        "max_age_error_pct": 0.5,
+        "max_constraint_error_pct": 0.5,
+        "max_negative_weight_pct": 0.0,
+        "max_top_100_weight_share_pct": 95.0,
+        "max_top_10_weight_share_pct": 25.0,
+        "min_effective_sample_size": 75.0,
+        "min_positive_household_count": 1000,
+        "start_year": 2075
+      },
+      {
+        "age_bucket_size": 5,
+        "end_year": 2085,
+        "max_age_error_pct": 10.0,
+        "max_constraint_error_pct": 10.0,
+        "max_negative_weight_pct": 0.0,
+        "max_top_100_weight_share_pct": 95.0,
+        "max_top_10_weight_share_pct": 25.0,
+        "min_effective_sample_size": 75.0,
+        "min_positive_household_count": 1000,
+        "start_year": 2079
+      },
+      {
+        "age_bucket_size": 5,
+        "end_year": 2095,
+        "max_age_error_pct": 20.0,
+        "max_constraint_error_pct": 20.0,
+        "max_negative_weight_pct": 0.0,
+        "max_top_100_weight_share_pct": 95.0,
+        "max_top_10_weight_share_pct": 25.0,
+        "min_effective_sample_size": 75.0,
+        "min_positive_household_count": 1000,
+        "start_year": 2086
+      },
+      {
+        "age_bucket_size": 5,
+        "end_year": null,
+        "max_age_error_pct": 35.0,
+        "max_constraint_error_pct": 35.0,
+        "max_negative_weight_pct": 0.0,
+        "max_top_100_weight_share_pct": 95.0,
+        "max_top_10_weight_share_pct": 25.0,
+        "min_effective_sample_size": 75.0,
+        "min_positive_household_count": 1000,
+        "start_year": 2096
+      }
+    ],
+    "benchmark_tob": false,
+    "calibration_method": "entropy",
+    "description": "Age, Social Security, taxable payroll, and TOB using positive entropy calibration under the long-run core-threshold tax assumption.",
+    "max_age_error_pct": 0.1,
+    "max_constraint_error_pct": 0.1,
+    "max_negative_weight_pct": 0.0,
+    "max_top_100_weight_share_pct": 95.0,
+    "max_top_10_weight_share_pct": 25.0,
+    "min_effective_sample_size": 75.0,
+    "min_positive_household_count": 1000,
+    "name": "ss-payroll-tob",
+    "use_greg": false,
+    "use_h6_reform": false,
+    "use_payroll": true,
+    "use_ss": true,
+    "use_tob": true
+  },
+  "support_augmentation": {
+    "activation_start_year": 2075,
+    "blueprint_base_weight_scale": 5.0,
+    "clone_weight_scale": 0.1,
+    "donors_per_target": 5,
+    "family": "targeted_donor",
+    "max_distance_for_clone": 3.0,
+    "name": "donor-backed-composite-v1",
+    "non_target_income_sanitizer_mode": "none",
+    "report_file": "support_augmentation_report_2087.json",
+    "report_summary": {
+      "augmented_household_count": 61714,
+      "augmented_person_count": 153094,
+      "base_household_count": 41314,
+      "base_person_count": 101384,
+      "clone_household_count": 20400,
+      "role_composite_clone_count": 400,
+      "skipped_target_count": 0,
+      "successful_target_count": 400,
+      "tob_donor_clone_count": 20000
+    },
+    "sanitize_clone_non_target_income": false,
+    "sanitize_worker_non_target_income": false,
+    "support_solve_max_constraint_error_pct": 5.0,
+    "target_year": 2087,
+    "target_year_strategy": "run_year",
+    "tob_donor_clones_per_source": 40,
+    "tob_donor_max_weight_scale_multiplier": 10.0,
+    "tob_donor_min_weight_scale_multiplier": 0.1,
+    "tob_donor_top_n_sources": 500,
+    "tob_donor_weight_scale": 0.2,
+    "tob_donor_weighting_mode": "equal_contribution",
+    "top_n_targets": 20
+  },
+  "target_source": {
+    "baseline_kind": "current_law_comparator",
+    "description": "2025 Trustees current-law baseline used by the legacy long-term calibration stack.",
+    "file": "trustees_2025_current_law.csv",
+    "name": "trustees_2025_current_law",
+    "not_law": false,
+    "notes": [
+      "Generated from social_security_aux.csv for explicit source selection."
+    ],
+    "sha256": "e059aa9fba806b260a399b8a6a18b892a6363ba12ee00fe21ab109d09dff0ec4",
+    "source_urls": [
+      "https://www.ssa.gov/oact/tr/2025/lrIndex.html",
+      "https://www.ssa.gov/oact/solvency/provisions/tables/table_run133.html"
+    ],
+    "type": "trustees_current_law"
+  },
+  "tax_assumption": {
+    "description": "Best-public Trustees tax-side approximation: keep Social Security benefit-tax thresholds fixed, but wage-index all federal income tax parameters that otherwise use IRS CPI uprating after 2034 using the active NAWI path.",
+    "economic_assumption": "trustees-2025-nawi-v1",
+    "end_year": 2100,
+    "income_uprating_assumption": "trustees-2025-soi-income-nawi-v1",
+    "name": "trustees-2025-core-thresholds-v1",
+    "not_default_current_law": true,
+    "parameter_groups": [
+      "all_gov_irs_uprating_parameters"
+    ],
+    "projection_base_year": 2026,
+    "source": "SSA 2025 Trustees Report V.C.7 and OACT email clarification, May 6, 2026",
+    "start_year": 2035,
+    "uprating_parameter": "gov.irs.uprating"
+  },
+  "year": 2087
+}

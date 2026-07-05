@@ -39,18 +39,80 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sha256_package_tree(path: Path) -> dict[str, Any]:
+    """Fingerprint the importable package tree, not just one sentinel file."""
+    digest = hashlib.sha256()
+    file_count = 0
+    size_bytes = 0
+    for file_path in sorted(path.rglob("*")):
+        if not file_path.is_file():
+            continue
+        relative_path = file_path.relative_to(path).as_posix()
+        if "__pycache__" in file_path.parts or file_path.suffix in {".pyc", ".pyo"}:
+            continue
+        contents = file_path.read_bytes()
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(len(contents)).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(contents)
+        digest.update(b"\0")
+        file_count += 1
+        size_bytes += len(contents)
+    return {
+        "package_tree_sha256": digest.hexdigest(),
+        "package_tree_file_count": file_count,
+        "package_tree_size": size_bytes,
+    }
+
+
 def _find_git_repo_root(path: Path) -> Path | None:
     current = path if path.is_dir() else path.parent
     for candidate in (current, *current.parents):
         if (candidate / ".git").exists():
             return candidate
+        if candidate.name in {".venv", "venv", "site-packages"}:
+            return None
     return None
+
+
+def _pyproject_project_name(repo_root: Path) -> str | None:
+    pyproject_path = repo_root / "pyproject.toml"
+    if not pyproject_path.exists():
+        return None
+    in_project = False
+    for line in pyproject_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped == "[project]":
+            in_project = True
+            continue
+        if in_project and stripped.startswith("["):
+            return None
+        if in_project and stripped.startswith("name"):
+            _, _, value = stripped.partition("=")
+            return value.strip().strip("\"'")
+    return None
+
+
+def _load_distribution_direct_url(package_name: str) -> dict[str, Any] | None:
+    try:
+        distribution = importlib_metadata.distribution(package_name)
+    except importlib_metadata.PackageNotFoundError:
+        return None
+    direct_url_text = distribution.read_text("direct_url.json")
+    if direct_url_text is None:
+        return None
+    try:
+        return json.loads(direct_url_text)
+    except json.JSONDecodeError:
+        return {"invalid_direct_url_json": direct_url_text}
 
 
 def capture_policyengine_us_provenance() -> dict[str, Any]:
     import policyengine_us
 
     package_file = Path(policyengine_us.__file__).resolve()
+    package_dir = package_file.parent
     version = getattr(policyengine_us, "__version__", None)
     if version is None:
         try:
@@ -58,14 +120,28 @@ def capture_policyengine_us_provenance() -> dict[str, Any]:
         except importlib_metadata.PackageNotFoundError:
             version = None
     provenance: dict[str, Any] = {
+        "package_dir": str(package_dir),
+        **_sha256_package_tree(package_dir),
         "package_file": str(package_file),
         "package_file_sha256": _sha256_file(package_file),
         "package_mtime_ns": package_file.stat().st_mtime_ns,
         "package_size": package_file.stat().st_size,
         "version": version,
     }
+    direct_url = _load_distribution_direct_url("policyengine-us")
+    if direct_url is not None:
+        provenance["direct_url"] = direct_url
+        vcs_info = direct_url.get("vcs_info") or {}
+        commit_id = vcs_info.get("commit_id")
+        if commit_id:
+            provenance["git_commit_id"] = commit_id
+            provenance["git_dirty"] = False
+        requested_revision = vcs_info.get("requested_revision")
+        if requested_revision:
+            provenance["git_requested_revision"] = requested_revision
+
     repo_root = _find_git_repo_root(package_file)
-    if repo_root is None:
+    if repo_root is None or _pyproject_project_name(repo_root) != "policyengine-us":
         return provenance
 
     provenance["repo_root"] = str(repo_root)
@@ -155,11 +231,12 @@ def _normalize_support_augmentation_contract(
     if value is None:
         return None
     normalized = _json_clone(value)
-    # Dynamic support augmentation records run-local reporting details that vary
-    # by year even when the augmentation contract is otherwise identical.
-    normalized.pop("target_year", None)
-    normalized.pop("report_file", None)
-    normalized.pop("report_summary", None)
+    if normalized.get("target_year_strategy") == "run_year":
+        # Dynamic support augmentation records run-local reporting details that
+        # vary by year even when the augmentation contract is otherwise identical.
+        normalized.pop("target_year", None)
+        normalized.pop("report_file", None)
+        normalized.pop("report_summary", None)
     return normalized
 
 

@@ -483,6 +483,12 @@ def build_tax_unit_summary(
     sim = Microsimulation(dataset=dataset, reform=reform)
     input_df = sim.to_input_dataframe()
 
+    def calculate_person_variable(*variable_names: str) -> np.ndarray:
+        for variable_name in variable_names:
+            if variable_name in sim.tax_benefit_system.variables:
+                return sim.calculate(variable_name, period=period).values
+        return np.zeros(len(input_df), dtype=float)
+
     person_df = pd.DataFrame(
         {
             "tax_unit_id": sim.calculate("person_tax_unit_id", period=period).values,
@@ -501,6 +507,16 @@ def build_tax_unit_summary(
                 + sim.calculate(
                     "social_security_taxable_self_employment_income", period=period
                 ).values
+            ),
+            "earnings": (
+                calculate_person_variable(
+                    "employment_income_before_lsr",
+                    "employment_income",
+                )
+                + calculate_person_variable(
+                    "self_employment_income_before_lsr",
+                    "self_employment_income",
+                )
             ),
             "dividend_income": sim.calculate(
                 "qualified_dividend_income", period=period
@@ -534,6 +550,8 @@ def build_tax_unit_summary(
         dependent_ages = tuple(sorted(int(age) for age in dependents["age"].tolist()))
         head_payroll = float(heads["payroll"].sum()) if not heads.empty else 0.0
         spouse_payroll = float(spouses["payroll"].sum()) if not spouses.empty else 0.0
+        head_earnings = float(heads["earnings"].sum()) if not heads.empty else 0.0
+        spouse_earnings = float(spouses["earnings"].sum()) if not spouses.empty else 0.0
         head_ss = float(heads["social_security"].sum()) if not heads.empty else 0.0
         spouse_ss = (
             float(spouses["social_security"].sum()) if not spouses.empty else 0.0
@@ -548,9 +566,12 @@ def build_tax_unit_summary(
             "dependent_ages": dependent_ages,
             "head_payroll": head_payroll,
             "spouse_payroll": spouse_payroll,
+            "head_earnings": head_earnings,
+            "spouse_earnings": spouse_earnings,
             "head_ss": head_ss,
             "spouse_ss": spouse_ss,
             "payroll_total": float(group["payroll"].sum()),
+            "earnings_total": float(group["earnings"].sum()),
             "ss_total": float(group["social_security"].sum()),
             "dividend_income": float(group["dividend_income"].sum()),
             "pension_income": float(group["pension_income"].sum()),
@@ -921,6 +942,10 @@ def build_role_composite_calibration_blueprint(
     base_weight_scale: float = 0.5,
     ss_values_actual: np.ndarray | None = None,
     payroll_values_actual: np.ndarray | None = None,
+    oasdi_tob_values_actual: np.ndarray | None = None,
+    hi_tob_values_actual: np.ndarray | None = None,
+    tob_donor_min_weight_scale_multiplier: float = 0.1,
+    tob_donor_max_weight_scale_multiplier: float = 10.0,
     include_value_overrides: bool = True,
 ) -> dict[str, object] | None:
     """
@@ -932,10 +957,16 @@ def build_role_composite_calibration_blueprint(
     calibration contract aligned with the rows that downstream scoring uses.
     """
     target_year = augmentation_report.get("target_year")
-    clone_reports = augmentation_report.get("clone_household_reports")
     if target_year is None or int(target_year) != int(year):
         return None
-    if not clone_reports:
+
+    clone_reports = augmentation_report.get("clone_household_reports") or []
+    tob_donor_clone_reports = augmentation_report.get("tob_donor_clone_reports", [])
+    needs_tob_donor_regularization = (
+        augmentation_report.get("tob_donor_weighting_mode") == "equal_contribution"
+        and bool(tob_donor_clone_reports)
+    )
+    if not clone_reports and not needs_tob_donor_regularization:
         return None
 
     baseline_weights = np.asarray(baseline_weights, dtype=float)
@@ -986,6 +1017,104 @@ def build_role_composite_calibration_blueprint(
         )
         applied_clone_households += 1
 
+    tob_family_prior_summary = None
+    if needs_tob_donor_regularization:
+        if oasdi_tob_values_actual is None or hi_tob_values_actual is None:
+            raise ValueError(
+                "Equal-contribution TOB donor support requires realized TOB values"
+            )
+        if tob_donor_min_weight_scale_multiplier <= 0:
+            raise ValueError("TOB donor min weight-scale multiplier must be positive")
+        if tob_donor_max_weight_scale_multiplier <= 0:
+            raise ValueError("TOB donor max weight-scale multiplier must be positive")
+        if (
+            tob_donor_max_weight_scale_multiplier
+            < tob_donor_min_weight_scale_multiplier
+        ):
+            raise ValueError(
+                "TOB donor max weight-scale multiplier must be at least the minimum"
+            )
+
+        oasdi_tob = np.asarray(oasdi_tob_values_actual, dtype=float)
+        hi_tob = np.asarray(hi_tob_values_actual, dtype=float)
+        if (
+            oasdi_tob.shape != prior_weights.shape
+            or hi_tob.shape != prior_weights.shape
+        ):
+            raise ValueError("TOB value arrays must align to baseline_weights")
+        tob_values = np.abs(hi_tob)
+        tob_score_mode = "hi_tob"
+        if not np.any(tob_values > 0):
+            tob_values = np.abs(oasdi_tob) + np.abs(hi_tob)
+            tob_score_mode = "total_tob"
+
+        family_household_ids: dict[int, set[int]] = {}
+        for clone_report in tob_donor_clone_reports:
+            source_household_id = clone_report.get("source_household_id")
+            clone_household_id = clone_report.get("clone_household_id")
+            if source_household_id is None or clone_household_id is None:
+                continue
+            source_household_id = int(source_household_id)
+            family_household_ids.setdefault(source_household_id, set()).update(
+                {source_household_id, int(clone_household_id)}
+            )
+
+        family_indices = []
+        prior_contributions = []
+        for household_ids in family_household_ids.values():
+            indices = sorted(
+                idx
+                for household_id in household_ids
+                if (idx := hh_id_to_idx.get(int(household_id))) is not None
+            )
+            if not indices:
+                continue
+            indices_array = np.asarray(indices, dtype=int)
+            contribution = float(
+                np.sum(prior_weights[indices_array] * tob_values[indices_array])
+            )
+            if contribution <= 0:
+                continue
+            family_indices.append(indices_array)
+            prior_contributions.append(contribution)
+
+        if prior_contributions:
+            contribution_target = float(np.median(prior_contributions))
+            multipliers = []
+            for indices_array, contribution in zip(
+                family_indices,
+                prior_contributions,
+            ):
+                multiplier = float(
+                    np.clip(
+                        contribution_target / max(contribution, 1e-12),
+                        tob_donor_min_weight_scale_multiplier,
+                        tob_donor_max_weight_scale_multiplier,
+                    )
+                )
+                prior_weights[indices_array] *= multiplier
+                multipliers.append(multiplier)
+            tob_family_prior_summary = {
+                "mode": "equal_contribution",
+                "score_mode": tob_score_mode,
+                "family_count": int(len(family_indices)),
+                "contribution_target": contribution_target,
+                "min_weight_scale_multiplier": float(
+                    tob_donor_min_weight_scale_multiplier
+                ),
+                "max_weight_scale_multiplier": float(
+                    tob_donor_max_weight_scale_multiplier
+                ),
+                "applied_min_multiplier": float(min(multipliers)),
+                "applied_median_multiplier": float(np.median(multipliers)),
+                "applied_max_multiplier": float(max(multipliers)),
+            }
+        else:
+            raise ValueError(
+                "Equal-contribution TOB donor support produced no mappable "
+                "positive donor-family contributions"
+            )
+
     return {
         "baseline_weights": np.maximum(prior_weights, 1e-12),
         "age_overrides": age_overrides,
@@ -998,6 +1127,7 @@ def build_role_composite_calibration_blueprint(
             "base_weight_scale": float(base_weight_scale),
             "clone_total_prior_weight": float(clone_total_prior_weight),
             "include_value_overrides": bool(include_value_overrides),
+            "tob_donor_family_prior_regularization": tob_family_prior_summary,
         },
     }
 
@@ -1309,6 +1439,15 @@ def build_scaled_actual_summary(
     scaled["scaled_head_payroll"] = scaled["head_payroll"] * earnings_scale
     scaled["scaled_spouse_payroll"] = scaled["spouse_payroll"] * earnings_scale
     scaled["scaled_payroll_total"] = scaled["payroll_total"] * earnings_scale
+    if "head_earnings" not in scaled.columns:
+        scaled["head_earnings"] = scaled["head_payroll"]
+    if "spouse_earnings" not in scaled.columns:
+        scaled["spouse_earnings"] = scaled["spouse_payroll"]
+    if "earnings_total" not in scaled.columns:
+        scaled["earnings_total"] = scaled["payroll_total"]
+    scaled["scaled_head_earnings"] = scaled["head_earnings"] * earnings_scale
+    scaled["scaled_spouse_earnings"] = scaled["spouse_earnings"] * earnings_scale
+    scaled["scaled_earnings_total"] = scaled["earnings_total"] * earnings_scale
     scaled["scaled_head_ss"] = scaled["head_ss"] * ss_scale
     scaled["scaled_spouse_ss"] = scaled["spouse_ss"] * ss_scale
     scaled["scaled_ss_total"] = scaled["ss_total"] * ss_scale
@@ -1467,11 +1606,68 @@ def build_role_donor_composite_candidate(
         head_wages = payroll_total * head_payroll_share
         spouse_wages = payroll_total * (1.0 - head_payroll_share)
     else:
-        head_wages, spouse_wages = allocate_taxable_payroll_wages(
+        head_taxable_wages, spouse_taxable_wages = allocate_taxable_payroll_wages(
             payroll_total,
             (head_payroll_share, 1.0 - head_payroll_share),
             payroll_cap,
             has_spouse=target_candidate.spouse_age is not None,
+        )
+        earnings_total = payroll_total
+        if (
+            worker_donor_row is not None
+            and float(worker_donor_row.get("scaled_payroll_total", 0.0)) > 0
+        ):
+            earnings_ratio = float(
+                worker_donor_row.get("scaled_earnings_total", 0.0)
+            ) / max(float(worker_donor_row["scaled_payroll_total"]), 1e-12)
+            earnings_total = payroll_total * max(earnings_ratio, 1.0)
+        head_earnings_share = head_payroll_share
+        if (
+            worker_donor_row is not None
+            and target_candidate.head_wages > 0
+            and target_candidate.spouse_wages > 0
+            and float(worker_donor_row.get("scaled_earnings_total", 0.0)) > 0
+        ):
+            head_earnings_share = _safe_split(
+                float(worker_donor_row.get("scaled_head_earnings", 0.0)),
+                float(worker_donor_row.get("scaled_earnings_total", 0.0)),
+                head_payroll_share,
+            )
+        taxable_total = head_taxable_wages + spouse_taxable_wages
+        earnings_total = max(earnings_total, taxable_total)
+        excess_earnings = max(earnings_total - taxable_total, 0.0)
+        desired_head_earnings = earnings_total * head_earnings_share
+        desired_spouse_earnings = earnings_total * (1.0 - head_earnings_share)
+        head_can_absorb_excess = head_taxable_wages >= payroll_cap - 1e-9
+        spouse_can_absorb_excess = (
+            target_candidate.spouse_age is not None
+            and spouse_taxable_wages >= payroll_cap - 1e-9
+        )
+        head_excess_demand = (
+            max(desired_head_earnings - head_taxable_wages, 0.0)
+            if head_can_absorb_excess
+            else 0.0
+        )
+        spouse_excess_demand = (
+            max(desired_spouse_earnings - spouse_taxable_wages, 0.0)
+            if spouse_can_absorb_excess
+            else 0.0
+        )
+        excess_demand_total = head_excess_demand + spouse_excess_demand
+        if excess_demand_total > 0:
+            head_excess_share = head_excess_demand / excess_demand_total
+        elif head_can_absorb_excess and not spouse_can_absorb_excess:
+            head_excess_share = 1.0
+        elif spouse_can_absorb_excess and not head_can_absorb_excess:
+            head_excess_share = 0.0
+        elif head_can_absorb_excess and spouse_can_absorb_excess:
+            head_excess_share = head_earnings_share
+        else:
+            head_excess_share = 0.0
+            excess_earnings = 0.0
+        head_wages = head_taxable_wages + excess_earnings * head_excess_share
+        spouse_wages = spouse_taxable_wages + excess_earnings * (
+            1.0 - head_excess_share
         )
     ss_total = target_candidate.ss_total
     pension_income = 0.0
@@ -1866,6 +2062,162 @@ def _zero_period_columns(
         return ()
     df.loc[row_indices, list(available_columns)] = 0.0
     return available_columns
+
+
+def _clone_rows_with_new_entity_ids(
+    source_rows: pd.DataFrame,
+    *,
+    base_year: int,
+    id_counters: dict[str, int],
+    weight_scale: float,
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    cloned = source_rows.copy()
+    for entity_name, columns in ENTITY_ID_COLUMNS.items():
+        id_column = _period_column(columns[0], base_year)
+        person_entity_column = _period_column(columns[1], base_year)
+        if id_column not in cloned.columns:
+            continue
+        id_map = {}
+        for old_id in pd.unique(cloned[id_column]):
+            id_map[old_id] = id_counters[entity_name]
+            id_counters[entity_name] += 1
+        cloned[id_column] = _cast_mapped_ids(
+            cloned[id_column],
+            cloned[id_column].map(id_map),
+        )
+        if person_entity_column in cloned.columns:
+            cloned[person_entity_column] = _cast_mapped_ids(
+                cloned[person_entity_column],
+                cloned[person_entity_column].map(id_map),
+            )
+
+    person_id_col = _period_column(PERSON_ID_COLUMN, base_year)
+    if person_id_col in cloned.columns:
+        person_ids = range(id_counters["person"], id_counters["person"] + len(cloned))
+        id_counters["person"] += len(cloned)
+        cloned[person_id_col] = _cast_mapped_ids(
+            cloned[person_id_col],
+            pd.Series(list(person_ids), index=cloned.index),
+        )
+
+    for raw_weight_column in ("household_weight", "person_weight"):
+        weight_column = _period_column(raw_weight_column, base_year)
+        if weight_column in cloned.columns:
+            cloned[weight_column] = cloned[weight_column].astype(float) * weight_scale
+
+    return cloned, id_counters
+
+
+def _build_tob_donor_clone_frames(
+    *,
+    input_df: pd.DataFrame,
+    sim: Microsimulation,
+    base_year: int,
+    target_year: int,
+    id_counters: dict[str, int],
+    top_n_sources: int,
+    clones_per_source: int,
+    weight_scale: float,
+    weighting_mode: str = "equal_contribution",
+    min_weight_scale_multiplier: float = 0.1,
+    max_weight_scale_multiplier: float = 10.0,
+) -> tuple[list[pd.DataFrame], list[dict[str, object]], dict[str, int]]:
+    if top_n_sources <= 0 or clones_per_source <= 0:
+        return [], [], id_counters
+    if weighting_mode not in {"fixed", "equal_contribution"}:
+        raise ValueError(f"Unsupported TOB donor weighting mode: {weighting_mode}")
+    if min_weight_scale_multiplier <= 0 or max_weight_scale_multiplier <= 0:
+        raise ValueError("TOB donor weight-scale multipliers must be positive")
+    if max_weight_scale_multiplier < min_weight_scale_multiplier:
+        raise ValueError(
+            "TOB donor max weight-scale multiplier must be at least the minimum"
+        )
+
+    household_id_col = _period_column("household_id", base_year)
+    household_weight_col = _period_column("household_weight", base_year)
+    household_ids = sim.calculate("household_id", map_to="household").values
+    oasdi_tob = sim.calculate(
+        "tob_revenue_oasdi", period=target_year, map_to="household"
+    ).values.astype(float)
+    hi_tob = sim.calculate(
+        "tob_revenue_medicare_hi", period=target_year, map_to="household"
+    ).values.astype(float)
+    score = hi_tob.copy()
+    tob_score_mode = "hi_tob"
+    if not np.any(score > 0):
+        score = oasdi_tob + hi_tob
+        tob_score_mode = "total_tob"
+    ranked_indices = np.argsort(score)[::-1]
+    frames: list[pd.DataFrame] = []
+    reports: list[dict[str, object]] = []
+    selected_sources: list[tuple[int, int, pd.DataFrame, float]] = []
+    for idx in ranked_indices:
+        if score[idx] <= 0 or len(selected_sources) >= top_n_sources:
+            break
+        source_household_id = int(household_ids[idx])
+        source_rows = input_df[input_df[household_id_col] == source_household_id]
+        if source_rows.empty:
+            continue
+        source_weight = 1.0
+        if household_weight_col in source_rows.columns:
+            source_weight = float(source_rows[household_weight_col].iloc[0])
+        selected_sources.append((idx, source_household_id, source_rows, source_weight))
+
+    contribution_target = 0.0
+    source_prior_contributions: dict[int, float] = {}
+    if weighting_mode == "equal_contribution":
+        prior_contributions = []
+        for idx, source_household_id, _, source_weight in selected_sources:
+            contribution = float(score[idx]) * max(float(source_weight), 1e-12)
+            source_prior_contributions[source_household_id] = contribution
+            if contribution > 0:
+                prior_contributions.append(contribution)
+        if prior_contributions:
+            contribution_target = float(np.median(prior_contributions))
+
+    for idx, source_household_id, source_rows, _ in selected_sources:
+        source_weight_scale = float(weight_scale)
+        weight_scale_multiplier = 1.0
+        if weighting_mode == "equal_contribution" and contribution_target > 0:
+            source_contribution = max(
+                source_prior_contributions.get(source_household_id, 0.0),
+                1e-12,
+            )
+            weight_scale_multiplier = float(
+                np.clip(
+                    contribution_target / source_contribution,
+                    min_weight_scale_multiplier,
+                    max_weight_scale_multiplier,
+                )
+            )
+            source_weight_scale *= weight_scale_multiplier
+        for clone_number in range(clones_per_source):
+            clone_df, id_counters = _clone_rows_with_new_entity_ids(
+                source_rows,
+                base_year=base_year,
+                id_counters=id_counters,
+                weight_scale=source_weight_scale,
+            )
+            frames.append(clone_df)
+            reports.append(
+                {
+                    "source_household_id": source_household_id,
+                    "clone_household_id": int(clone_df[household_id_col].iloc[0]),
+                    "clone_number": int(clone_number),
+                    "source_oasdi_tob": float(oasdi_tob[idx]),
+                    "source_hi_tob": float(hi_tob[idx]),
+                    "source_tob_total": float(oasdi_tob[idx] + hi_tob[idx]),
+                    "source_tob_score": float(score[idx]),
+                    "score_mode": tob_score_mode,
+                    "base_weight_scale": float(weight_scale),
+                    "weight_scale": float(source_weight_scale),
+                    "weight_scale_multiplier": float(weight_scale_multiplier),
+                    "min_weight_scale_multiplier": float(min_weight_scale_multiplier),
+                    "max_weight_scale_multiplier": float(max_weight_scale_multiplier),
+                    "weighting_mode": weighting_mode,
+                }
+            )
+    return frames, reports, id_counters
 
 
 def _target_base_total_for_row(
@@ -2474,6 +2826,13 @@ def build_role_composite_augmented_input_dataframe(
     max_worker_distance: float = 3.0,
     clone_weight_scale: float = 0.1,
     reform: object | None = None,
+    support_solve_max_constraint_error_pct: float = 0.5,
+    tob_donor_top_n_sources: int = 500,
+    tob_donor_clones_per_source: int = 40,
+    tob_donor_weight_scale: float = 0.2,
+    tob_donor_weighting_mode: str = "equal_contribution",
+    tob_donor_min_weight_scale_multiplier: float = 0.1,
+    tob_donor_max_weight_scale_multiplier: float = 10.0,
     sanitize_worker_non_target_income: bool = False,
     sanitize_clone_non_target_income: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, object]]:
@@ -2530,7 +2889,7 @@ def build_role_composite_augmented_input_dataframe(
     role_composite_weights, role_composite_solve_info = solve_synthetic_support(
         role_composite_candidates,
         year=target_year,
-        max_constraint_error_pct=0.5,
+        max_constraint_error_pct=support_solve_max_constraint_error_pct,
         baseline_weights=role_composite_prior,
     )
     role_composite_df = summarize_exact_candidates(
@@ -2659,6 +3018,25 @@ def build_role_composite_augmented_input_dataframe(
             }
         )
 
+    (
+        tob_donor_clone_frames,
+        tob_donor_clone_reports,
+        id_counters,
+    ) = _build_tob_donor_clone_frames(
+        input_df=input_df,
+        sim=sim,
+        base_year=base_year,
+        target_year=target_year,
+        id_counters=id_counters,
+        top_n_sources=tob_donor_top_n_sources,
+        clones_per_source=tob_donor_clones_per_source,
+        weight_scale=tob_donor_weight_scale,
+        weighting_mode=tob_donor_weighting_mode,
+        min_weight_scale_multiplier=tob_donor_min_weight_scale_multiplier,
+        max_weight_scale_multiplier=tob_donor_max_weight_scale_multiplier,
+    )
+    clone_frames.extend(tob_donor_clone_frames)
+
     augmented_df = (
         pd.concat([input_df, *clone_frames], ignore_index=True)
         if clone_frames
@@ -2683,6 +3061,19 @@ def build_role_composite_augmented_input_dataframe(
         "max_older_distance": float(max_older_distance),
         "max_worker_distance": float(max_worker_distance),
         "clone_weight_scale": float(clone_weight_scale),
+        "support_solve_max_constraint_error_pct": float(
+            support_solve_max_constraint_error_pct
+        ),
+        "tob_donor_top_n_sources": int(tob_donor_top_n_sources),
+        "tob_donor_clones_per_source": int(tob_donor_clones_per_source),
+        "tob_donor_weight_scale": float(tob_donor_weight_scale),
+        "tob_donor_weighting_mode": tob_donor_weighting_mode,
+        "tob_donor_min_weight_scale_multiplier": float(
+            tob_donor_min_weight_scale_multiplier
+        ),
+        "tob_donor_max_weight_scale_multiplier": float(
+            tob_donor_max_weight_scale_multiplier
+        ),
         "non_target_income_sanitizer_mode": non_target_income_sanitizer_mode,
         "sanitize_worker_non_target_income": bool(sanitize_worker_non_target_income),
         "sanitize_clone_non_target_income": bool(sanitize_clone_non_target_income),
@@ -2709,6 +3100,8 @@ def build_role_composite_augmented_input_dataframe(
         "role_composite_candidate_count": int(len(role_composite_candidates)),
         "selected_role_composite_count": int(len(selected_composite_df)),
         "clone_household_count": int(len(clone_household_reports)),
+        "tob_donor_clone_count": int(len(tob_donor_clone_reports)),
+        "tob_donor_clone_reports": tob_donor_clone_reports,
         "clone_household_reports": clone_household_reports,
         "target_reports": target_reports,
         "skipped_targets": skipped_targets,
@@ -2727,6 +3120,13 @@ def build_role_composite_augmented_dataset(
     max_worker_distance: float = 3.0,
     clone_weight_scale: float = 0.1,
     reform: object | None = None,
+    support_solve_max_constraint_error_pct: float = 0.5,
+    tob_donor_top_n_sources: int = 500,
+    tob_donor_clones_per_source: int = 40,
+    tob_donor_weight_scale: float = 0.2,
+    tob_donor_weighting_mode: str = "equal_contribution",
+    tob_donor_min_weight_scale_multiplier: float = 0.1,
+    tob_donor_max_weight_scale_multiplier: float = 10.0,
     sanitize_worker_non_target_income: bool = False,
     sanitize_clone_non_target_income: bool = False,
 ) -> tuple[Dataset, dict[str, object]]:
@@ -2740,6 +3140,13 @@ def build_role_composite_augmented_dataset(
         max_worker_distance=max_worker_distance,
         clone_weight_scale=clone_weight_scale,
         reform=reform,
+        support_solve_max_constraint_error_pct=support_solve_max_constraint_error_pct,
+        tob_donor_top_n_sources=tob_donor_top_n_sources,
+        tob_donor_clones_per_source=tob_donor_clones_per_source,
+        tob_donor_weight_scale=tob_donor_weight_scale,
+        tob_donor_weighting_mode=tob_donor_weighting_mode,
+        tob_donor_min_weight_scale_multiplier=(tob_donor_min_weight_scale_multiplier),
+        tob_donor_max_weight_scale_multiplier=(tob_donor_max_weight_scale_multiplier),
         sanitize_worker_non_target_income=sanitize_worker_non_target_income,
         sanitize_clone_non_target_income=sanitize_clone_non_target_income,
     )

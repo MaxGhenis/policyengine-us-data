@@ -70,6 +70,7 @@ from policyengine_us_data.datasets.cps.long_term.tax_assumptions import (
 from policyengine_us_data.datasets.cps.long_term.prototype_synthetic_2100_support import (
     SyntheticCandidate,
     _compose_role_donor_rows_to_target,
+    _build_tob_donor_clone_frames,
     build_role_composite_calibration_blueprint,
     build_role_donor_composites,
     summarize_realized_clone_translation,
@@ -664,9 +665,12 @@ def test_role_donor_composites_preserve_taxable_payroll_under_cap():
                 "dependent_ages": (),
                 "head_payroll": 180_000.0,
                 "spouse_payroll": 20_000.0,
+                "head_earnings": 300_000.0,
+                "spouse_earnings": 100_000.0,
                 "head_ss": 0.0,
                 "spouse_ss": 0.0,
                 "payroll_total": 200_000.0,
+                "earnings_total": 400_000.0,
                 "ss_total": 0.0,
                 "dividend_income": 0.0,
                 "pension_income": 0.0,
@@ -692,9 +696,46 @@ def test_role_donor_composites_preserve_taxable_payroll_under_cap():
     assert report["skipped_targets"] == []
     assert len(composite_candidates) == 1
     composite = composite_candidates[0]
-    assert composite.head_wages == pytest.approx(payroll_cap)
+    assert composite.head_wages + composite.spouse_wages == pytest.approx(300_000.0)
+    assert composite.head_wages == pytest.approx(250_000.0)
     assert composite.spouse_wages == pytest.approx(50_000.0)
     assert composite.taxable_payroll_total(payroll_cap) == pytest.approx(150_000.0)
+
+
+def test_target_contribution_audit_can_group_clone_families():
+    ungrouped = calibration_module.build_target_contribution_support_audit(
+        weights=np.array([1.0, 1.0, 1.0]),
+        values=np.array([100.0, 100.0, 100.0]),
+        prefix="oasdi_tob",
+    )
+    grouped = calibration_module.build_target_contribution_support_audit(
+        weights=np.array([1.0, 1.0, 1.0]),
+        values=np.array([100.0, 100.0, 100.0]),
+        prefix="oasdi_tob",
+        group_ids=np.array(["source:1", "source:1", "source:1"], dtype=object),
+    )
+
+    assert ungrouped["oasdi_tob_contributor_effective_sample_size"] == pytest.approx(
+        3.0
+    )
+    assert grouped["oasdi_tob_contributor_effective_sample_size"] == pytest.approx(1.0)
+    assert grouped["oasdi_tob_positive_contributor_count"] == 1
+    assert grouped["max_oasdi_tob_contribution_share_pct"] == pytest.approx(100.0)
+
+
+def test_tob_donor_clones_group_by_source_household_for_clone_audit():
+    audit = calibration_module.build_clone_donor_family_weight_concentration_audit(
+        weights=np.array([5.0, 2.0, 2.0]),
+        household_ids=np.array([1, 2, 3]),
+        clone_household_reports=[
+            {"source_household_id": 1, "clone_household_id": 2},
+            {"source_household_id": 1, "clone_household_id": 3},
+        ],
+    )
+
+    assert audit["positive_clone_donor_family_count"] == 1
+    assert audit["clone_donor_family_effective_sample_size"] == pytest.approx(1.0)
+    assert audit["max_clone_donor_family_weight_share_pct"] == pytest.approx(100.0)
 
 
 def test_age_bin_helpers_preserve_population_totals():
@@ -825,6 +866,202 @@ def test_role_composite_blueprint_prefers_realized_support_values():
     assert blueprint is not None
     assert blueprint["ss_overrides"] == {1: 21_000.0}
     assert blueprint["payroll_overrides"] == {1: 55_000.0}
+
+
+def test_role_composite_blueprint_regularizes_tob_donor_family_priors():
+    report = {
+        "target_year": 2100,
+        "tob_donor_weighting_mode": "equal_contribution",
+        "clone_household_reports": [
+            {
+                "clone_household_id": 1001,
+                "target_head_age": 70,
+                "target_spouse_age": None,
+                "target_dependent_ages": [],
+                "target_ss_total": 0.0,
+                "target_payroll_total": 0.0,
+                "per_clone_weight_share_pct": 1.0,
+            }
+        ],
+        "tob_donor_clone_reports": [
+            {"source_household_id": 1, "clone_household_id": 2},
+            {"source_household_id": 3, "clone_household_id": 4},
+        ],
+    }
+
+    blueprint = build_role_composite_calibration_blueprint(
+        report,
+        year=2100,
+        age_bins=build_age_bins(n_ages=86, bucket_size=5),
+        hh_id_to_idx={1: 0, 2: 1, 3: 2, 4: 3, 1001: 4},
+        baseline_weights=np.array([100.0, 100.0, 10.0, 10.0, 1.0]),
+        base_weight_scale=1.0,
+        oasdi_tob_values_actual=np.array([100.0, 100.0, 100.0, 100.0, 0.0]),
+        hi_tob_values_actual=np.zeros(5),
+        tob_donor_min_weight_scale_multiplier=0.5,
+        tob_donor_max_weight_scale_multiplier=2.0,
+    )
+
+    assert blueprint is not None
+    assert blueprint["baseline_weights"][:4].tolist() == pytest.approx(
+        [55.0, 55.0, 20.0, 20.0]
+    )
+    summary = blueprint["summary"]["tob_donor_family_prior_regularization"]
+    assert summary["family_count"] == 2
+    assert summary["score_mode"] == "total_tob"
+    assert summary["contribution_target"] == pytest.approx(11_000.0)
+    assert summary["applied_min_multiplier"] == pytest.approx(0.55)
+    assert summary["applied_max_multiplier"] == pytest.approx(2.0)
+
+
+def test_role_composite_blueprint_regularizes_tob_donor_priors_without_role_clones():
+    report = {
+        "target_year": 2100,
+        "tob_donor_weighting_mode": "equal_contribution",
+        "clone_household_reports": [],
+        "tob_donor_clone_reports": [
+            {"source_household_id": 1, "clone_household_id": 2},
+            {"source_household_id": 3, "clone_household_id": 4},
+        ],
+    }
+
+    blueprint = build_role_composite_calibration_blueprint(
+        report,
+        year=2100,
+        age_bins=build_age_bins(n_ages=86, bucket_size=5),
+        hh_id_to_idx={1: 0, 2: 1, 3: 2, 4: 3},
+        baseline_weights=np.array([100.0, 100.0, 10.0, 10.0]),
+        base_weight_scale=1.0,
+        oasdi_tob_values_actual=np.array([100.0, 100.0, 100.0, 100.0]),
+        hi_tob_values_actual=np.zeros(4),
+        tob_donor_min_weight_scale_multiplier=0.5,
+        tob_donor_max_weight_scale_multiplier=2.0,
+    )
+
+    assert blueprint is not None
+    assert blueprint["summary"]["clone_household_count"] == 0
+    assert blueprint["age_overrides"] == {}
+    assert blueprint["baseline_weights"].tolist() == pytest.approx(
+        [55.0, 55.0, 20.0, 20.0]
+    )
+    summary = blueprint["summary"]["tob_donor_family_prior_regularization"]
+    assert summary["family_count"] == 2
+    assert summary["mode"] == "equal_contribution"
+    assert summary["score_mode"] == "total_tob"
+
+
+def test_role_composite_blueprint_uses_hi_tob_for_donor_prior_regularization():
+    report = {
+        "target_year": 2100,
+        "tob_donor_weighting_mode": "equal_contribution",
+        "clone_household_reports": [],
+        "tob_donor_clone_reports": [
+            {"source_household_id": 1, "clone_household_id": 2},
+            {"source_household_id": 3, "clone_household_id": 4},
+        ],
+    }
+
+    blueprint = build_role_composite_calibration_blueprint(
+        report,
+        year=2100,
+        age_bins=build_age_bins(n_ages=86, bucket_size=5),
+        hh_id_to_idx={1: 0, 2: 1, 3: 2, 4: 3},
+        baseline_weights=np.array([100.0, 100.0, 10.0, 10.0]),
+        base_weight_scale=1.0,
+        oasdi_tob_values_actual=np.array([100.0, 100.0, 100.0, 100.0]),
+        hi_tob_values_actual=np.array([20.0, 20.0, 100.0, 100.0]),
+        tob_donor_min_weight_scale_multiplier=0.5,
+        tob_donor_max_weight_scale_multiplier=2.0,
+    )
+
+    assert blueprint is not None
+    assert blueprint["baseline_weights"].tolist() == pytest.approx(
+        [75.0, 75.0, 15.0, 15.0]
+    )
+    summary = blueprint["summary"]["tob_donor_family_prior_regularization"]
+    assert summary["score_mode"] == "hi_tob"
+    assert summary["contribution_target"] == pytest.approx(3_000.0)
+    assert summary["applied_min_multiplier"] == pytest.approx(0.75)
+    assert summary["applied_max_multiplier"] == pytest.approx(1.5)
+
+
+def test_tob_donor_clone_frames_rank_sources_by_hi_tob_when_available():
+    import pandas as pd
+
+    class FakeSim:
+        def calculate(self, variable, *, period=None, map_to=None):
+            assert map_to == "household"
+            if variable == "household_id":
+                return SimpleNamespace(values=np.array([1, 2, 3]))
+            if variable == "tob_revenue_oasdi":
+                assert period == 2100
+                return SimpleNamespace(values=np.array([1_000.0, 1.0, 1.0]))
+            if variable == "tob_revenue_medicare_hi":
+                assert period == 2100
+                return SimpleNamespace(values=np.array([1.0, 100.0, 60.0]))
+            raise AssertionError(variable)
+
+    input_df = pd.DataFrame(
+        {
+            "household_id__2024": [1, 2, 3],
+            "person_household_id__2024": [1, 2, 3],
+            "person_id__2024": [10, 20, 30],
+            "household_weight__2024": [1.0, 1.0, 1.0],
+            "person_weight__2024": [1.0, 1.0, 1.0],
+        }
+    )
+
+    frames, reports, _ = _build_tob_donor_clone_frames(
+        input_df=input_df,
+        sim=FakeSim(),
+        base_year=2024,
+        target_year=2100,
+        id_counters={
+            "household": 101,
+            "family": 201,
+            "tax_unit": 301,
+            "spm_unit": 401,
+            "marital_unit": 501,
+            "person": 601,
+        },
+        top_n_sources=2,
+        clones_per_source=2,
+        weight_scale=0.2,
+        weighting_mode="equal_contribution",
+    )
+
+    assert len(frames) == 4
+    source_ids = [report["source_household_id"] for report in reports]
+    assert set(source_ids) == {2, 3}
+    assert 1 not in source_ids
+    assert {report["score_mode"] for report in reports} == {"hi_tob"}
+    assert {report["source_tob_score"] for report in reports} == {100.0, 60.0}
+    assert {report["source_tob_total"] for report in reports} == {101.0, 61.0}
+    source_weights = {
+        report["source_household_id"]: report["weight_scale"] for report in reports
+    }
+    assert source_weights[2] == pytest.approx(0.16)
+    assert source_weights[3] == pytest.approx(0.2 * (80.0 / 60.0))
+
+
+def test_role_composite_blueprint_requires_tob_values_for_equal_contribution():
+    report = {
+        "target_year": 2100,
+        "tob_donor_weighting_mode": "equal_contribution",
+        "clone_household_reports": [],
+        "tob_donor_clone_reports": [
+            {"source_household_id": 1, "clone_household_id": 2},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="requires realized TOB values"):
+        build_role_composite_calibration_blueprint(
+            report,
+            year=2100,
+            age_bins=build_age_bins(n_ages=86, bucket_size=5),
+            hh_id_to_idx={1: 0, 2: 1},
+            baseline_weights=np.array([100.0, 100.0]),
+        )
 
 
 def test_legacy_flags_map_to_named_profile():
@@ -1629,6 +1866,7 @@ def test_update_dataset_manifest_ignores_support_augmentation_run_year_fields(tm
         support_augmentation={
             "name": "donor-backed-composite-v1",
             "activation_start_year": 2075,
+            "target_year_strategy": "run_year",
             "target_year": 2075,
             "report_file": "support_augmentation_report_2075.json",
             "report_summary": {"augmented_household_count": 41674},
@@ -1645,6 +1883,7 @@ def test_update_dataset_manifest_ignores_support_augmentation_run_year_fields(tm
         support_augmentation={
             "name": "donor-backed-composite-v1",
             "activation_start_year": 2075,
+            "target_year_strategy": "run_year",
             "target_year": 2075,
             "report_file": "support_augmentation_report_2075.json",
             "report_summary": {"augmented_household_count": 41674},
@@ -1662,6 +1901,7 @@ def test_update_dataset_manifest_ignores_support_augmentation_run_year_fields(tm
         support_augmentation={
             "name": "donor-backed-composite-v1",
             "activation_start_year": 2075,
+            "target_year_strategy": "run_year",
             "target_year": 2100,
             "report_file": "support_augmentation_report_2100.json",
             "report_summary": {"augmented_household_count": 41950},
@@ -1678,6 +1918,7 @@ def test_update_dataset_manifest_ignores_support_augmentation_run_year_fields(tm
         support_augmentation={
             "name": "donor-backed-composite-v1",
             "activation_start_year": 2075,
+            "target_year_strategy": "run_year",
             "target_year": 2100,
             "report_file": "support_augmentation_report_2100.json",
             "report_summary": {"augmented_household_count": 41950},
@@ -1692,6 +1933,86 @@ def test_update_dataset_manifest_ignores_support_augmentation_run_year_fields(tm
         manifest["support_augmentation"]["report_file"]
         == "support_augmentation_report_2100.json"
     )
+
+
+def test_update_dataset_manifest_rejects_different_fixed_support_target_years(
+    tmp_path,
+):
+    profile = get_profile("ss-payroll-tob")
+    audit = {
+        "method_used": "entropy",
+        "fell_back_to_ipf": False,
+        "age_max_pct_error": 0.0,
+        "negative_weight_pct": 0.0,
+        "positive_weight_count": 70000,
+        "effective_sample_size": 5000.0,
+        "top_10_weight_share_pct": 1.5,
+        "top_100_weight_share_pct": 10.0,
+        "max_constraint_pct_error": 0.0,
+        "constraints": {},
+        "validation_passed": True,
+        "validation_issues": [],
+    }
+
+    year_2075 = tmp_path / "2075.h5"
+    year_2075.write_text("", encoding="utf-8")
+    support_2075 = {
+        "name": "donor-backed-composite-v1",
+        "activation_start_year": 2075,
+        "target_year_strategy": "fixed",
+        "target_year": 2075,
+        "report_file": "support_augmentation_report_2075.json",
+        "report_summary": {"augmented_household_count": 41674},
+    }
+    metadata_2075 = write_year_metadata(
+        year_2075,
+        year=2075,
+        base_dataset_path="test.h5",
+        profile=profile.to_dict(),
+        calibration_audit=audit,
+        support_augmentation=support_2075,
+    )
+    update_dataset_manifest(
+        tmp_path,
+        year=2075,
+        h5_path=year_2075,
+        metadata_path=metadata_2075,
+        base_dataset_path="test.h5",
+        profile=profile.to_dict(),
+        calibration_audit=audit,
+        support_augmentation=support_2075,
+    )
+
+    year_2100 = tmp_path / "2100.h5"
+    year_2100.write_text("", encoding="utf-8")
+    support_2100 = {
+        "name": "donor-backed-composite-v1",
+        "activation_start_year": 2075,
+        "target_year_strategy": "fixed",
+        "target_year": 2100,
+        "report_file": "support_augmentation_report_2100.json",
+        "report_summary": {"augmented_household_count": 41950},
+    }
+    metadata_2100 = write_year_metadata(
+        year_2100,
+        year=2100,
+        base_dataset_path="test.h5",
+        profile=profile.to_dict(),
+        calibration_audit=audit,
+        support_augmentation=support_2100,
+    )
+
+    with pytest.raises(ValueError, match="different support augmentation"):
+        update_dataset_manifest(
+            tmp_path,
+            year=2100,
+            h5_path=year_2100,
+            metadata_path=metadata_2100,
+            base_dataset_path="test.h5",
+            profile=profile.to_dict(),
+            calibration_audit=audit,
+            support_augmentation=support_2100,
+        )
 
 
 def test_manifest_persists_tax_assumption_metadata(tmp_path):
@@ -1861,6 +2182,10 @@ def test_capture_base_dataset_snapshot_fingerprints_local_file(tmp_path):
 def test_capture_policyengine_us_provenance_includes_runtime_file():
     provenance = capture_policyengine_us_provenance()
 
+    assert provenance["package_dir"]
+    assert provenance["package_tree_sha256"]
+    assert provenance["package_tree_file_count"] > 1
+    assert provenance["package_tree_size"] > provenance["package_size"]
     assert provenance["package_file"]
     assert provenance["package_file_sha256"]
     assert provenance["version"]
@@ -1993,6 +2318,13 @@ def test_long_term_production_command_carries_2100_contract(tmp_path):
         support_augmentation_donors_per_target=None,
         support_augmentation_max_distance=None,
         support_augmentation_clone_weight_scale=None,
+        support_augmentation_solve_max_constraint_error_pct=None,
+        support_augmentation_tob_donor_top_n_sources=None,
+        support_augmentation_tob_donor_clones_per_source=None,
+        support_augmentation_tob_donor_weight_scale=None,
+        support_augmentation_tob_donor_weighting_mode=None,
+        support_augmentation_tob_donor_min_weight_scale_multiplier=None,
+        support_augmentation_tob_donor_max_weight_scale_multiplier=None,
         support_augmentation_blueprint_base_weight_scale=0.5,
         support_augmentation_sanitize_worker_non_target_income=False,
         support_augmentation_sanitize_clone_non_target_income=True,
@@ -2014,6 +2346,53 @@ def test_long_term_production_command_carries_2100_contract(tmp_path):
     assert command[command.index("--support-augmentation-profile") + 1] == (
         "donor-backed-composite-v1"
     )
+    assert command[command.index("--support-augmentation-start-year") + 1] == "2075"
+    assert command[command.index("--support-augmentation-top-n-targets") + 1] == "20"
+    assert command[command.index("--support-augmentation-donors-per-target") + 1] == "5"
+    assert command[command.index("--support-augmentation-max-distance") + 1] == "3.0"
+    assert (
+        command[command.index("--support-augmentation-clone-weight-scale") + 1] == "0.1"
+    )
+    assert (
+        command[
+            command.index("--support-augmentation-solve-max-constraint-error-pct") + 1
+        ]
+        == "0.5"
+    )
+    assert (
+        command[command.index("--support-augmentation-tob-donor-top-n-sources") + 1]
+        == "500"
+    )
+    assert (
+        command[command.index("--support-augmentation-tob-donor-clones-per-source") + 1]
+        == "40"
+    )
+    assert (
+        command[command.index("--support-augmentation-tob-donor-weight-scale") + 1]
+        == "0.2"
+    )
+    assert (
+        command[command.index("--support-augmentation-tob-donor-weighting-mode") + 1]
+        == "equal_contribution"
+    )
+    assert (
+        command[
+            command.index(
+                "--support-augmentation-tob-donor-min-weight-scale-multiplier"
+            )
+            + 1
+        ]
+        == "0.1"
+    )
+    assert (
+        command[
+            command.index(
+                "--support-augmentation-tob-donor-max-weight-scale-multiplier"
+            )
+            + 1
+        ]
+        == "10.0"
+    )
     assert (
         command[command.index("--support-augmentation-blueprint-base-weight-scale") + 1]
         == "0.5"
@@ -2021,6 +2400,62 @@ def test_long_term_production_command_carries_2100_contract(tmp_path):
     assert "--support-augmentation-sanitize-worker-non-target-income" not in command
     assert "--support-augmentation-sanitize-clone-non-target-income" in command
     assert "--allow-validation-failures" in command
+
+
+def test_long_term_production_command_carries_tob_donor_weighting_overrides(tmp_path):
+    args = Namespace(
+        years="2100",
+        jobs=1,
+        profile="ss-payroll-tob",
+        target_source="trustees_2025_current_law",
+        tax_assumption=TRUSTEES_CORE_THRESHOLD_ASSUMPTION["name"],
+        keep_temp=False,
+        base_dataset="",
+        support_augmentation_profile="donor-backed-composite-v1",
+        support_augmentation_target_year=2100,
+        support_augmentation_align_to_run_year=False,
+        support_augmentation_start_year=None,
+        support_augmentation_top_n_targets=120,
+        support_augmentation_donors_per_target=20,
+        support_augmentation_max_distance=None,
+        support_augmentation_clone_weight_scale=None,
+        support_augmentation_solve_max_constraint_error_pct=5.0,
+        support_augmentation_tob_donor_top_n_sources=5000,
+        support_augmentation_tob_donor_clones_per_source=4,
+        support_augmentation_tob_donor_weight_scale=1.0,
+        support_augmentation_tob_donor_weighting_mode="equal_contribution",
+        support_augmentation_tob_donor_min_weight_scale_multiplier=0.02,
+        support_augmentation_tob_donor_max_weight_scale_multiplier=50.0,
+        support_augmentation_blueprint_base_weight_scale=5.0,
+        support_augmentation_sanitize_worker_non_target_income=False,
+        support_augmentation_sanitize_clone_non_target_income=False,
+        allow_validation_failures=False,
+    )
+
+    command = build_projection_command(args, tmp_path)
+
+    assert (
+        command[command.index("--support-augmentation-tob-donor-weighting-mode") + 1]
+        == "equal_contribution"
+    )
+    assert (
+        command[
+            command.index(
+                "--support-augmentation-tob-donor-min-weight-scale-multiplier"
+            )
+            + 1
+        ]
+        == "0.02"
+    )
+    assert (
+        command[
+            command.index(
+                "--support-augmentation-tob-donor-max-weight-scale-multiplier"
+            )
+            + 1
+        ]
+        == "50.0"
+    )
 
 
 def test_parallel_projection_validate_forwarded_args_rejects_wrapper_flags():

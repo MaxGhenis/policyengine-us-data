@@ -1035,6 +1035,36 @@ def calibrate_weights(
             audit["approximation_method"] = "lp_minimax"
             audit["approximate_solution_error_pct"] = approximate_error_pct
             return w_new, iterations, audit
+    elif method == "microcalibrate":
+        try:
+            from .microcalibrate_backend import calibrate_with_microcalibrate
+        except ImportError:  # executed as a top-level script (no parent package)
+            from microcalibrate_backend import calibrate_with_microcalibrate
+
+        # Optional macro dollar controls become extra estimate-matrix columns so
+        # the same backend serves demographics-only and macro-augmented
+        # profiles. Demographics-only profiles (age-only) pass none of these.
+        extra = dict(extra_constraints) if extra_constraints else {}
+        if ss_values is not None and ss_target is not None:
+            extra["ss_total"] = (ss_values, ss_target)
+        if payroll_values is not None and payroll_target is not None:
+            extra["payroll_total"] = (payroll_values, payroll_target)
+        if oasdi_tob_values is not None and oasdi_tob_target is not None:
+            extra["oasdi_tob_total"] = (oasdi_tob_values, oasdi_tob_target)
+        if hi_tob_values is not None and hi_tob_target is not None:
+            extra["hi_tob_total"] = (hi_tob_values, hi_tob_target)
+        if h6_income_values is not None and h6_revenue_target is not None:
+            extra["h6_revenue"] = (h6_income_values, h6_revenue_target)
+
+        w_new, iterations, mc_info = calibrate_with_microcalibrate(
+            X,
+            y_target,
+            baseline_weights,
+            extra_constraints=extra or None,
+        )
+        audit["method_used"] = "microcalibrate"
+        audit["microcalibrate_info"] = mc_info
+        return w_new, iterations, audit
     else:
         w_new, info = iterative_proportional_fitting(
             X, y_target, baseline_weights, max_iters, tol, verbose
@@ -1087,6 +1117,7 @@ def build_target_contribution_support_audit(
     weights,
     values,
     prefix: str,
+    group_ids=None,
 ) -> dict[str, float | int]:
     weights = np.asarray(weights, dtype=float)
     values = np.asarray(values, dtype=float)
@@ -1094,8 +1125,19 @@ def build_target_contribution_support_audit(
         raise ValueError("weights and values must be one-dimensional")
     if values.shape[0] != weights.shape[0]:
         raise ValueError("values must have the same length as weights")
+    if group_ids is not None:
+        group_ids = np.asarray(group_ids)
+        if group_ids.shape[0] != weights.shape[0]:
+            raise ValueError("group_ids must have the same length as weights")
 
     contributions = np.abs(values * weights)
+    if group_ids is not None:
+        contributions = (
+            pd.Series(contributions)
+            .groupby(pd.Series(group_ids), sort=False)
+            .sum()
+            .to_numpy(dtype=float)
+        )
     contributor_mask = contributions > 0
     contributor_contributions = contributions[contributor_mask]
     contribution_sum = float(contributor_contributions.sum())
@@ -1117,7 +1159,7 @@ def build_target_contribution_support_audit(
     )
 
     return {
-        f"{prefix}_contributor_count": int(values.shape[0]),
+        f"{prefix}_contributor_count": int(contributions.shape[0]),
         f"{prefix}_positive_contributor_count": int(contributor_mask.sum()),
         f"{prefix}_contributor_effective_sample_size": float(effective_sample_size),
         f"top_10_{prefix}_contribution_share_pct": top_10_share,
@@ -1143,11 +1185,17 @@ def build_clone_donor_family_weight_concentration_audit(
         clone_household_id = clone_report.get("clone_household_id")
         if clone_household_id is None:
             continue
-        older_donor = clone_report.get("older_donor_tax_unit_id")
-        worker_donor = clone_report.get("worker_donor_tax_unit_id")
-        donor_lookup[int(clone_household_id)] = (
-            f"donor_family:older={older_donor};worker={worker_donor}"
-        )
+        source_household_id = clone_report.get("source_household_id")
+        if source_household_id is not None:
+            donor_lookup[int(clone_household_id)] = (
+                f"tob_donor_source_household:{int(source_household_id)}"
+            )
+        else:
+            older_donor = clone_report.get("older_donor_tax_unit_id")
+            worker_donor = clone_report.get("worker_donor_tax_unit_id")
+            donor_lookup[int(clone_household_id)] = (
+                f"donor_family:older={older_donor};worker={worker_donor}"
+            )
 
     clone_mask = np.zeros(household_ids.shape[0], dtype=bool)
     clone_group_ids = []

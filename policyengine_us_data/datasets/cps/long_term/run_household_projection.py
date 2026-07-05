@@ -382,9 +382,21 @@ def _donor_family_ids(
         donor_lookup[int(clone_household_id)] = (
             f"donor_family:older={older_donor};worker={worker_donor}"
         )
+    tob_source_lookup = {}
+    for clone_report in augmentation_report.get("tob_donor_clone_reports", []):
+        clone_household_id = clone_report.get("clone_household_id")
+        source_household_id = clone_report.get("source_household_id")
+        if clone_household_id is None or source_household_id is None:
+            continue
+        family_id = f"tob_donor_source_household:{int(source_household_id)}"
+        donor_lookup[int(clone_household_id)] = family_id
+        tob_source_lookup[int(source_household_id)] = family_id
 
     for idx, household_id in enumerate(household_ids):
-        donor_family_id = donor_lookup.get(int(household_id))
+        household_id = int(household_id)
+        donor_family_id = donor_lookup.get(household_id) or tob_source_lookup.get(
+            household_id
+        )
         if donor_family_id is not None:
             family_ids[idx] = donor_family_id
     return family_ids
@@ -397,9 +409,13 @@ def _support_augmentation_family(profile: str) -> str:
 
 
 def _support_report_clone_household_count(augmentation_report: dict) -> int:
-    if "clone_household_count" in augmentation_report:
-        return int(augmentation_report["clone_household_count"])
     clone_count = 0
+    if "clone_household_count" in augmentation_report:
+        clone_count += int(augmentation_report["clone_household_count"])
+    if "tob_donor_clone_count" in augmentation_report:
+        clone_count += int(augmentation_report["tob_donor_clone_count"])
+    if clone_count > 0:
+        return clone_count
     for rule_report in augmentation_report.get("rules", []):
         clone_count += int(
             rule_report.get(
@@ -429,6 +445,13 @@ def _support_report_summary(augmentation_report: dict) -> dict[str, object]:
             augmentation_report
         ),
     }
+    if "tob_donor_clone_count" in augmentation_report:
+        summary["role_composite_clone_count"] = int(
+            augmentation_report.get("clone_household_count", 0)
+        )
+        summary["tob_donor_clone_count"] = int(
+            augmentation_report["tob_donor_clone_count"]
+        )
     successful_target_count = _support_report_successful_target_count(
         augmentation_report
     )
@@ -469,6 +492,25 @@ def _support_augmentation_metadata(
                 "donors_per_target": SUPPORT_AUGMENTATION_DONORS_PER_TARGET,
                 "max_distance_for_clone": SUPPORT_AUGMENTATION_MAX_DISTANCE,
                 "clone_weight_scale": SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
+                "support_solve_max_constraint_error_pct": (
+                    SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT
+                ),
+                "tob_donor_top_n_sources": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES
+                ),
+                "tob_donor_clones_per_source": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE
+                ),
+                "tob_donor_weight_scale": (SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE),
+                "tob_donor_weighting_mode": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE
+                ),
+                "tob_donor_min_weight_scale_multiplier": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER
+                ),
+                "tob_donor_max_weight_scale_multiplier": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER
+                ),
                 "blueprint_base_weight_scale": (
                     SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE
                 ),
@@ -578,6 +620,106 @@ if "--support-augmentation-clone-weight-scale" in sys.argv:
         raise ValueError("--support-augmentation-clone-weight-scale requires a float")
     SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE = float(sys.argv[weight_scale_index + 1])
     del sys.argv[weight_scale_index : weight_scale_index + 2]
+
+SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT = 0.5
+if "--support-augmentation-solve-max-constraint-error-pct" in sys.argv:
+    solve_tolerance_index = sys.argv.index(
+        "--support-augmentation-solve-max-constraint-error-pct"
+    )
+    if solve_tolerance_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-solve-max-constraint-error-pct requires a float"
+        )
+    SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT = float(
+        sys.argv[solve_tolerance_index + 1]
+    )
+    del sys.argv[solve_tolerance_index : solve_tolerance_index + 2]
+
+SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES = 500
+if "--support-augmentation-tob-donor-top-n-sources" in sys.argv:
+    tob_donor_top_n_index = sys.argv.index(
+        "--support-augmentation-tob-donor-top-n-sources"
+    )
+    if tob_donor_top_n_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-tob-donor-top-n-sources requires an integer"
+        )
+    SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES = int(
+        sys.argv[tob_donor_top_n_index + 1]
+    )
+    del sys.argv[tob_donor_top_n_index : tob_donor_top_n_index + 2]
+
+SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE = 40
+if "--support-augmentation-tob-donor-clones-per-source" in sys.argv:
+    tob_donor_clones_index = sys.argv.index(
+        "--support-augmentation-tob-donor-clones-per-source"
+    )
+    if tob_donor_clones_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-tob-donor-clones-per-source requires an integer"
+        )
+    SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE = int(
+        sys.argv[tob_donor_clones_index + 1]
+    )
+    del sys.argv[tob_donor_clones_index : tob_donor_clones_index + 2]
+
+SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE = 0.2
+if "--support-augmentation-tob-donor-weight-scale" in sys.argv:
+    tob_donor_weight_index = sys.argv.index(
+        "--support-augmentation-tob-donor-weight-scale"
+    )
+    if tob_donor_weight_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-tob-donor-weight-scale requires a float"
+        )
+    SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE = float(
+        sys.argv[tob_donor_weight_index + 1]
+    )
+    del sys.argv[tob_donor_weight_index : tob_donor_weight_index + 2]
+
+SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE = "equal_contribution"
+if "--support-augmentation-tob-donor-weighting-mode" in sys.argv:
+    tob_donor_weighting_index = sys.argv.index(
+        "--support-augmentation-tob-donor-weighting-mode"
+    )
+    if tob_donor_weighting_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-tob-donor-weighting-mode requires a string"
+        )
+    SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE = sys.argv[
+        tob_donor_weighting_index + 1
+    ]
+    del sys.argv[tob_donor_weighting_index : tob_donor_weighting_index + 2]
+
+SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER = 0.1
+if "--support-augmentation-tob-donor-min-weight-scale-multiplier" in sys.argv:
+    tob_donor_min_multiplier_index = sys.argv.index(
+        "--support-augmentation-tob-donor-min-weight-scale-multiplier"
+    )
+    if tob_donor_min_multiplier_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-tob-donor-min-weight-scale-multiplier "
+            "requires a float"
+        )
+    SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER = float(
+        sys.argv[tob_donor_min_multiplier_index + 1]
+    )
+    del sys.argv[tob_donor_min_multiplier_index : tob_donor_min_multiplier_index + 2]
+
+SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER = 10.0
+if "--support-augmentation-tob-donor-max-weight-scale-multiplier" in sys.argv:
+    tob_donor_max_multiplier_index = sys.argv.index(
+        "--support-augmentation-tob-donor-max-weight-scale-multiplier"
+    )
+    if tob_donor_max_multiplier_index + 1 >= len(sys.argv):
+        raise ValueError(
+            "--support-augmentation-tob-donor-max-weight-scale-multiplier "
+            "requires a float"
+        )
+    SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER = float(
+        sys.argv[tob_donor_max_multiplier_index + 1]
+    )
+    del sys.argv[tob_donor_max_multiplier_index : tob_donor_max_multiplier_index + 2]
 
 SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE = 5.0
 if "--support-augmentation-blueprint-base-weight-scale" in sys.argv:
@@ -809,6 +951,10 @@ if SUPPORT_AUGMENTATION_PROFILE:
             f"{SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE}"
         )
         print(
+            "  Support augmentation solve max constraint error: "
+            f"{SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT}%"
+        )
+        print(
             "  Non-target income sanitizer mode: "
             f"{SUPPORT_AUGMENTATION_NON_TARGET_INCOME_SANITIZER_MODE}"
         )
@@ -850,6 +996,21 @@ def _build_support_augmentation(
             donors_per_target=SUPPORT_AUGMENTATION_DONORS_PER_TARGET,
             max_distance_for_clone=SUPPORT_AUGMENTATION_MAX_DISTANCE,
             clone_weight_scale=SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
+            support_solve_max_constraint_error_pct=(
+                SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT
+            ),
+            tob_donor_top_n_sources=SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES,
+            tob_donor_clones_per_source=(
+                SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE
+            ),
+            tob_donor_weight_scale=SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE,
+            tob_donor_weighting_mode=(SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE),
+            tob_donor_min_weight_scale_multiplier=(
+                SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER
+            ),
+            tob_donor_max_weight_scale_multiplier=(
+                SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER
+            ),
             reform=ACTIVE_LONG_RUN_TAX_REFORM,
             sanitize_worker_non_target_income=(
                 SUPPORT_AUGMENTATION_SANITIZE_WORKER_NON_TARGET_INCOME
@@ -998,6 +1159,25 @@ if SUPPORT_AUGMENTATION_PROFILE is not None and SUPPORT_AUGMENTATION_ALIGN_TO_RU
                 "donors_per_target": SUPPORT_AUGMENTATION_DONORS_PER_TARGET,
                 "max_distance_for_clone": SUPPORT_AUGMENTATION_MAX_DISTANCE,
                 "clone_weight_scale": SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
+                "support_solve_max_constraint_error_pct": (
+                    SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT
+                ),
+                "tob_donor_top_n_sources": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES
+                ),
+                "tob_donor_clones_per_source": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE
+                ),
+                "tob_donor_weight_scale": (SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE),
+                "tob_donor_weighting_mode": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE
+                ),
+                "tob_donor_min_weight_scale_multiplier": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER
+                ),
+                "tob_donor_max_weight_scale_multiplier": (
+                    SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER
+                ),
                 "blueprint_base_weight_scale": (
                     SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE
                 ),
@@ -1311,6 +1491,14 @@ for year_idx in range(n_years):
             base_weight_scale=SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE,
             ss_values_actual=ss_values_actual,
             payroll_values_actual=payroll_values_actual,
+            oasdi_tob_values_actual=oasdi_tob_values,
+            hi_tob_values_actual=hi_tob_values,
+            tob_donor_min_weight_scale_multiplier=(
+                SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER
+            ),
+            tob_donor_max_weight_scale_multiplier=(
+                SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER
+            ),
             include_value_overrides=False,
         )
         if calibration_blueprint is not None:
@@ -1421,6 +1609,11 @@ for year_idx in range(n_years):
         ("oasdi_tob", oasdi_tob_values if USE_TOB else None),
         ("hi_tob", hi_tob_values if USE_TOB else None),
     ]
+    target_support_group_ids = (
+        _donor_family_ids(household_ids_hh, current_support_augmentation_report)
+        if current_support_augmentation_report is not None
+        else None
+    )
     for target_prefix, target_values in target_support_specs:
         if target_values is None:
             continue
@@ -1429,25 +1622,30 @@ for year_idx in range(n_years):
                 weights=w_new,
                 values=target_values,
                 prefix=target_prefix,
+                group_ids=target_support_group_ids,
             )
         )
     if current_support_augmentation_report is not None:
         clone_household_reports = current_support_augmentation_report.get(
             "clone_household_reports", []
         )
+        tob_donor_clone_reports = current_support_augmentation_report.get(
+            "tob_donor_clone_reports", []
+        )
+        all_clone_household_reports = [
+            *clone_household_reports,
+            *tob_donor_clone_reports,
+        ]
         donor_family_audit = build_group_weight_concentration_audit(
             weights=w_new,
-            group_ids=_donor_family_ids(
-                household_ids_hh,
-                current_support_augmentation_report,
-            ),
+            group_ids=target_support_group_ids,
             prefix="donor_family",
         )
         calibration_audit.update(donor_family_audit)
         clone_donor_family_audit = build_clone_donor_family_weight_concentration_audit(
             weights=w_new,
             household_ids=household_ids_hh,
-            clone_household_reports=clone_household_reports,
+            clone_household_reports=all_clone_household_reports,
         )
         calibration_audit.update(clone_donor_family_audit)
         calibration_audit.update(

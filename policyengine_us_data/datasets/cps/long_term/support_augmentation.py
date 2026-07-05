@@ -467,6 +467,13 @@ def build_targeted_donor_augmented_dataset(
     max_distance_for_clone: float = 3.0,
     clone_weight_scale: float = 0.1,
     reform: Any | None = None,
+    support_solve_max_constraint_error_pct: float = 0.5,
+    tob_donor_top_n_sources: int = 500,
+    tob_donor_clones_per_source: int = 40,
+    tob_donor_weight_scale: float = 0.2,
+    tob_donor_weighting_mode: str = "equal_contribution",
+    tob_donor_min_weight_scale_multiplier: float = 0.1,
+    tob_donor_max_weight_scale_multiplier: float = 10.0,
     sanitize_worker_non_target_income: bool = False,
     sanitize_clone_non_target_income: bool = False,
 ) -> tuple[Dataset, dict[str, Any]]:
@@ -510,6 +517,19 @@ def build_targeted_donor_augmented_dataset(
             max_worker_distance=max_distance_for_clone,
             clone_weight_scale=clone_weight_scale,
             reform=reform,
+            support_solve_max_constraint_error_pct=(
+                support_solve_max_constraint_error_pct
+            ),
+            tob_donor_top_n_sources=tob_donor_top_n_sources,
+            tob_donor_clones_per_source=tob_donor_clones_per_source,
+            tob_donor_weight_scale=tob_donor_weight_scale,
+            tob_donor_weighting_mode=tob_donor_weighting_mode,
+            tob_donor_min_weight_scale_multiplier=(
+                tob_donor_min_weight_scale_multiplier
+            ),
+            tob_donor_max_weight_scale_multiplier=(
+                tob_donor_max_weight_scale_multiplier
+            ),
             sanitize_worker_non_target_income=sanitize_worker_non_target_income,
             sanitize_clone_non_target_income=sanitize_clone_non_target_income,
         )
@@ -530,6 +550,10 @@ def build_targeted_role_composite_calibration_blueprint(
     base_weight_scale: float = 0.5,
     ss_values_actual: np.ndarray | None = None,
     payroll_values_actual: np.ndarray | None = None,
+    oasdi_tob_values_actual: np.ndarray | None = None,
+    hi_tob_values_actual: np.ndarray | None = None,
+    tob_donor_min_weight_scale_multiplier: float = 0.1,
+    tob_donor_max_weight_scale_multiplier: float = 10.0,
     include_value_overrides: bool = True,
 ) -> dict[str, Any] | None:
     try:
@@ -550,6 +574,10 @@ def build_targeted_role_composite_calibration_blueprint(
         base_weight_scale=base_weight_scale,
         ss_values_actual=ss_values_actual,
         payroll_values_actual=payroll_values_actual,
+        oasdi_tob_values_actual=oasdi_tob_values_actual,
+        hi_tob_values_actual=hi_tob_values_actual,
+        tob_donor_min_weight_scale_multiplier=(tob_donor_min_weight_scale_multiplier),
+        tob_donor_max_weight_scale_multiplier=(tob_donor_max_weight_scale_multiplier),
         include_value_overrides=include_value_overrides,
     )
 

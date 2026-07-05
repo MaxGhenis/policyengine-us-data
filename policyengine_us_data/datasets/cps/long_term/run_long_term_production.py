@@ -23,6 +23,32 @@ PARALLEL_RUNNER = SCRIPT_DIR / "run_household_projection_parallel.py"
 DEFAULT_HF_REPO = "policyengine/policyengine-us-data"
 DEFAULT_ARTIFACT_PREFIX = "long_term"
 DEFAULT_TAX_ASSUMPTION = "trustees-2025-core-thresholds-v1"
+DEFAULT_SUPPORT_AUGMENTATION_START_YEAR = 2075
+DEFAULT_SUPPORT_AUGMENTATION_TOP_N_TARGETS = 20
+DEFAULT_SUPPORT_AUGMENTATION_DONORS_PER_TARGET = 5
+DEFAULT_SUPPORT_AUGMENTATION_MAX_DISTANCE = 3.0
+DEFAULT_SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE = 0.1
+DEFAULT_SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT = 0.5
+DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES = 500
+DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE = 40
+DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE = 0.2
+DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE = "equal_contribution"
+DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER = 0.1
+DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER = 10.0
+DEFAULT_SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE = 5.0
+
+
+def _effective_support_value(
+    args: argparse.Namespace,
+    name: str,
+    default: object,
+) -> object | None:
+    value = getattr(args, name, None)
+    if value is not None:
+        return value
+    if args.support_augmentation_profile:
+        return default
+    return None
 
 
 def _git_sha() -> str:
@@ -92,32 +118,119 @@ def build_projection_command(args: argparse.Namespace, output_dir: Path) -> list
     _add_optional_value(
         command,
         "--support-augmentation-start-year",
-        args.support_augmentation_start_year,
+        _effective_support_value(
+            args,
+            "support_augmentation_start_year",
+            DEFAULT_SUPPORT_AUGMENTATION_START_YEAR,
+        ),
     )
     _add_optional_value(
         command,
         "--support-augmentation-top-n-targets",
-        args.support_augmentation_top_n_targets,
+        _effective_support_value(
+            args,
+            "support_augmentation_top_n_targets",
+            DEFAULT_SUPPORT_AUGMENTATION_TOP_N_TARGETS,
+        ),
     )
     _add_optional_value(
         command,
         "--support-augmentation-donors-per-target",
-        args.support_augmentation_donors_per_target,
+        _effective_support_value(
+            args,
+            "support_augmentation_donors_per_target",
+            DEFAULT_SUPPORT_AUGMENTATION_DONORS_PER_TARGET,
+        ),
     )
     _add_optional_value(
         command,
         "--support-augmentation-max-distance",
-        args.support_augmentation_max_distance,
+        _effective_support_value(
+            args,
+            "support_augmentation_max_distance",
+            DEFAULT_SUPPORT_AUGMENTATION_MAX_DISTANCE,
+        ),
     )
     _add_optional_value(
         command,
         "--support-augmentation-clone-weight-scale",
-        args.support_augmentation_clone_weight_scale,
+        _effective_support_value(
+            args,
+            "support_augmentation_clone_weight_scale",
+            DEFAULT_SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-solve-max-constraint-error-pct",
+        _effective_support_value(
+            args,
+            "support_augmentation_solve_max_constraint_error_pct",
+            DEFAULT_SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-tob-donor-top-n-sources",
+        _effective_support_value(
+            args,
+            "support_augmentation_tob_donor_top_n_sources",
+            DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-tob-donor-clones-per-source",
+        _effective_support_value(
+            args,
+            "support_augmentation_tob_donor_clones_per_source",
+            DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-tob-donor-weight-scale",
+        _effective_support_value(
+            args,
+            "support_augmentation_tob_donor_weight_scale",
+            DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-tob-donor-weighting-mode",
+        _effective_support_value(
+            args,
+            "support_augmentation_tob_donor_weighting_mode",
+            DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-tob-donor-min-weight-scale-multiplier",
+        _effective_support_value(
+            args,
+            "support_augmentation_tob_donor_min_weight_scale_multiplier",
+            DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER,
+        ),
+    )
+    _add_optional_value(
+        command,
+        "--support-augmentation-tob-donor-max-weight-scale-multiplier",
+        _effective_support_value(
+            args,
+            "support_augmentation_tob_donor_max_weight_scale_multiplier",
+            DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER,
+        ),
     )
     _add_optional_value(
         command,
         "--support-augmentation-blueprint-base-weight-scale",
-        args.support_augmentation_blueprint_base_weight_scale,
+        _effective_support_value(
+            args,
+            "support_augmentation_blueprint_base_weight_scale",
+            DEFAULT_SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE,
+        ),
     )
     if args.support_augmentation_sanitize_worker_non_target_income:
         command.append("--support-augmentation-sanitize-worker-non-target-income")
@@ -210,13 +323,86 @@ def write_manifest(
                 "profile": args.support_augmentation_profile or None,
                 "target_year": args.support_augmentation_target_year,
                 "align_to_run_year": args.support_augmentation_align_to_run_year,
-                "start_year": args.support_augmentation_start_year,
-                "top_n_targets": args.support_augmentation_top_n_targets,
-                "donors_per_target": args.support_augmentation_donors_per_target,
-                "max_distance": args.support_augmentation_max_distance,
-                "clone_weight_scale": args.support_augmentation_clone_weight_scale,
+                "start_year": _effective_support_value(
+                    args,
+                    "support_augmentation_start_year",
+                    DEFAULT_SUPPORT_AUGMENTATION_START_YEAR,
+                ),
+                "top_n_targets": _effective_support_value(
+                    args,
+                    "support_augmentation_top_n_targets",
+                    DEFAULT_SUPPORT_AUGMENTATION_TOP_N_TARGETS,
+                ),
+                "donors_per_target": _effective_support_value(
+                    args,
+                    "support_augmentation_donors_per_target",
+                    DEFAULT_SUPPORT_AUGMENTATION_DONORS_PER_TARGET,
+                ),
+                "max_distance": _effective_support_value(
+                    args,
+                    "support_augmentation_max_distance",
+                    DEFAULT_SUPPORT_AUGMENTATION_MAX_DISTANCE,
+                ),
+                "clone_weight_scale": _effective_support_value(
+                    args,
+                    "support_augmentation_clone_weight_scale",
+                    DEFAULT_SUPPORT_AUGMENTATION_CLONE_WEIGHT_SCALE,
+                ),
+                "support_solve_max_constraint_error_pct": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_solve_max_constraint_error_pct",
+                        DEFAULT_SUPPORT_AUGMENTATION_SOLVE_MAX_CONSTRAINT_ERROR_PCT,
+                    )
+                ),
+                "tob_donor_top_n_sources": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_tob_donor_top_n_sources",
+                        DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_TOP_N_SOURCES,
+                    )
+                ),
+                "tob_donor_clones_per_source": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_tob_donor_clones_per_source",
+                        DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_CLONES_PER_SOURCE,
+                    )
+                ),
+                "tob_donor_weight_scale": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_tob_donor_weight_scale",
+                        DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHT_SCALE,
+                    )
+                ),
+                "tob_donor_weighting_mode": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_tob_donor_weighting_mode",
+                        DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_WEIGHTING_MODE,
+                    )
+                ),
+                "tob_donor_min_weight_scale_multiplier": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_tob_donor_min_weight_scale_multiplier",
+                        DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_MIN_WEIGHT_SCALE_MULTIPLIER,
+                    )
+                ),
+                "tob_donor_max_weight_scale_multiplier": (
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_tob_donor_max_weight_scale_multiplier",
+                        DEFAULT_SUPPORT_AUGMENTATION_TOB_DONOR_MAX_WEIGHT_SCALE_MULTIPLIER,
+                    )
+                ),
                 "blueprint_base_weight_scale": (
-                    args.support_augmentation_blueprint_base_weight_scale
+                    _effective_support_value(
+                        args,
+                        "support_augmentation_blueprint_base_weight_scale",
+                        DEFAULT_SUPPORT_AUGMENTATION_BLUEPRINT_BASE_WEIGHT_SCALE,
+                    )
                 ),
                 "sanitize_worker_non_target_income": (
                     args.support_augmentation_sanitize_worker_non_target_income
@@ -299,6 +485,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--support-augmentation-donors-per-target", type=int)
     parser.add_argument("--support-augmentation-max-distance", type=float)
     parser.add_argument("--support-augmentation-clone-weight-scale", type=float)
+    parser.add_argument(
+        "--support-augmentation-solve-max-constraint-error-pct",
+        type=float,
+    )
+    parser.add_argument("--support-augmentation-tob-donor-top-n-sources", type=int)
+    parser.add_argument("--support-augmentation-tob-donor-clones-per-source", type=int)
+    parser.add_argument("--support-augmentation-tob-donor-weight-scale", type=float)
+    parser.add_argument(
+        "--support-augmentation-tob-donor-weighting-mode",
+        choices=["fixed", "equal_contribution"],
+    )
+    parser.add_argument(
+        "--support-augmentation-tob-donor-min-weight-scale-multiplier",
+        type=float,
+    )
+    parser.add_argument(
+        "--support-augmentation-tob-donor-max-weight-scale-multiplier",
+        type=float,
+    )
     parser.add_argument(
         "--support-augmentation-blueprint-base-weight-scale",
         type=float,
