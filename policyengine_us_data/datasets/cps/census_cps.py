@@ -50,6 +50,19 @@ def _resolve_person_usecols(
     return [column for column in requested_columns if column in available_columns]
 
 
+# SPM_BBSUBVAL (the SPM unit's broadband subsidy value) is published only in
+# the ASEC 2022-2025 public-use person files, i.e. income years 2021-2024.
+# The ASEC 2026 file (income year 2025) no longer carries it.
+SPM_BBSUBVAL_INCOME_YEARS = range(2021, 2025)
+
+
+def spm_unit_columns_for_year(time_period: int) -> list[str]:
+    """SPM unit columns the Census person file carries for an income year."""
+    if int(time_period) in SPM_BBSUBVAL_INCOME_YEARS:
+        return list(SPM_UNIT_COLUMNS)
+    return [col for col in SPM_UNIT_COLUMNS if col != "SPM_BBSUBVAL"]
+
+
 def _fill_missing_optional_person_columns(person: pd.DataFrame) -> pd.DataFrame:
     for column in OPTIONAL_PERSON_COLUMNS:
         if column not in person.columns:
@@ -72,11 +85,7 @@ class CensusCPS(Dataset):
 
         url = self._cps_download_url
 
-        spm_unit_columns = SPM_UNIT_COLUMNS
-        if self.time_period <= 2020:
-            spm_unit_columns = [
-                col for col in spm_unit_columns if col != "SPM_BBSUBVAL"
-            ]
+        spm_unit_columns = spm_unit_columns_for_year(self.time_period)
 
         response = requests.get(url, stream=True)
         total_size_in_bytes = int(response.headers.get("content-length", 200e6))
@@ -98,11 +107,7 @@ class CensusCPS(Dataset):
             progress_bar.total = content_length_actual
             progress_bar.close()
             zipfile = ZipFile(file)
-            spm_unit_columns = SPM_UNIT_COLUMNS
-            if self.time_period <= 2020:
-                spm_unit_columns = [
-                    col for col in spm_unit_columns if col != "SPM_BBSUBVAL"
-                ]
+            spm_unit_columns = spm_unit_columns_for_year(self.time_period)
             with pd.HDFStore(self.file_path, mode="w") as storage:
                 file_year = int(self.time_period) + 1
                 file_year_code = str(file_year)[-2:]
@@ -165,12 +170,16 @@ class CensusCPS(Dataset):
     def _create_spm_unit_table(
         self, person: pd.DataFrame, time_period: int
     ) -> pd.DataFrame:
-        spm_unit_columns = SPM_UNIT_COLUMNS
-        if time_period <= 2020:
-            spm_unit_columns = [
-                col for col in spm_unit_columns if col != "SPM_BBSUBVAL"
-            ]
+        spm_unit_columns = spm_unit_columns_for_year(time_period)
         return person[spm_unit_columns].groupby(person.SPM_ID).first()
+
+
+class CensusCPS_2025(CensusCPS):
+    time_period = 2025
+    label = "Census CPS (2025)"
+    name = "census_cps_2025"
+    file_path = STORAGE_FOLDER / "census_cps_2025.h5"
+    data_format = Dataset.TABLES
 
 
 class CensusCPS_2024(CensusCPS):
@@ -237,6 +246,7 @@ CPS_URL_BY_YEAR = {
     2022: "https://www2.census.gov/programs-surveys/cps/datasets/2023/march/asecpub23csv.zip",
     2023: "https://www2.census.gov/programs-surveys/cps/datasets/2024/march/asecpub24csv.zip",
     2024: "https://www2.census.gov/programs-surveys/cps/datasets/2025/march/asecpub25csv.zip",
+    2025: "https://www2.census.gov/programs-surveys/cps/datasets/2026/march/asecpub26csv.zip",
 }
 
 
